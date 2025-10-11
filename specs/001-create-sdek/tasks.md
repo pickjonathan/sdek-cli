@@ -147,7 +147,7 @@
 
 ## Phase 3.4: State & Storage Layer
 
-- [ ] **T017** Create state persistence layer
+- [X] **T017** Create state persistence layer
   - Implement `State` struct in `internal/store/state.go`
   - Add JSON marshaling/unmarshaling
   - Add state file operations (Load, Save)
@@ -155,21 +155,21 @@
   - **Files**: `internal/store/state.go`
   - **Constitution**: I (Safety), IX (Modularity)
 
-- [ ] **T018** Implement auto-save functionality
+- [X] **T018** Implement auto-save functionality
   - Create `AutoSave` in `internal/store/autosave.go`
   - Add debounce logic (save after 2s idle)
   - Add graceful shutdown handling
   - **Files**: `internal/store/autosave.go`
   - **Constitution**: I (Safety), VI (Performance)
 
-- [ ] **T019** Implement state cache layer
+- [X] **T019** Implement state cache layer
   - Create `Cache` in `internal/store/cache.go`
   - Add in-memory indexes (by source, by framework, by control)
   - Add cache invalidation logic
   - **Files**: `internal/store/cache.go`
   - **Constitution**: VI (Performance), IX (Modularity)
 
-- [ ] **T020** Write storage layer tests
+- [X] **T020** Write storage layer tests
   - Test state save/load operations
   - Test auto-save debounce timing
   - Test cache hit/miss scenarios
@@ -178,7 +178,7 @@
 
 ## Phase 3.5: Configuration Management
 
-- [ ] **T021** Implement Viper configuration loader
+- [X] **T021** Implement Viper configuration loader
   - Create `ConfigLoader` in `internal/config/loader.go`
   - Implement precedence: flags → env → config file → defaults
   - Add environment variable binding (SDEK_*)
@@ -186,14 +186,14 @@
   - **Files**: `internal/config/loader.go`
   - **Constitution**: II (Configuration), IX (Modularity)
 
-- [ ] **T022** Implement configuration validation
+- [X] **T022** Implement configuration validation
   - Create `Validator` in `internal/config/validator.go`
   - Validate log levels, paths, enabled sources/frameworks
   - Return descriptive errors for invalid configs
   - **Files**: `internal/config/validator.go`
   - **Constitution**: I (Correctness), II (Configuration)
 
-- [ ] **T023** [P] Write configuration tests
+- [X] **T023** [P] Write configuration tests
   - Test precedence order (flags override env override config)
   - Test environment variable binding
   - Test validation error messages
@@ -202,7 +202,7 @@
 
 ## Phase 3.6: Data Generation (Ingest)
 
-- [ ] **T024** Create base data generator
+- [X] **T024** Create base data generator
   - Implement `Generator` interface in `internal/ingest/generator.go`
   - Add deterministic seeding logic
   - Add timestamp generation (within 90 days)
@@ -210,7 +210,7 @@
   - **Files**: `internal/ingest/generator.go`
   - **Constitution**: I (Correctness), IX (Modularity)
 
-- [ ] **T025** [P] Implement source-specific generators
+- [X] **T025** [P] Implement source-specific generators
   - Create `git.go` for Git commits (SHA, branch, files changed)
   - Create `jira.go` for Jira tickets (ticket ID, status, priority)
   - Create `slack.go` for Slack messages (channel, thread, reactions)
@@ -220,7 +220,7 @@
   - **Files**: `internal/ingest/git.go`, `internal/ingest/jira.go`, `internal/ingest/slack.go`, `internal/ingest/cicd.go`, `internal/ingest/docs.go`
   - **Constitution**: I (Correctness), IX (Modularity)
 
-- [ ] **T026** [P] Write ingest tests
+- [X] **T026** [P] Write ingest tests
   - Test deterministic generation with same seed
   - Test event count boundaries (10-50)
   - Test timestamp ranges
@@ -230,7 +230,7 @@
 
 ## Phase 3.7: Evidence Mapping (Analyze)
 
-- [ ] **T027** Implement framework definitions
+- [X] **T027** Implement framework definitions
   - Create `frameworks.go` in `internal/analyze/frameworks.go`
   - Define SOC2 controls (45 controls, categories)
   - Define ISO 27001 controls (60 controls)
@@ -239,7 +239,7 @@
   - **Files**: `internal/analyze/frameworks.go`
   - **Constitution**: I (Correctness), IX (Modularity)
 
-- [ ] **T028** Implement evidence mapper
+- [X] **T028** Implement evidence mapper
   - Create `Mapper` in `internal/analyze/mapper.go`
   - Implement keyword-based heuristic matching
   - Map events to controls based on keywords
@@ -247,14 +247,14 @@
   - **Files**: `internal/analyze/mapper.go`
   - **Constitution**: I (Correctness), IX (Modularity)
 
-- [ ] **T029** Implement confidence calculation
+- [X] **T029** Implement confidence calculation
   - Create `ConfidenceCalculator` in `internal/analyze/confidence.go`
   - Calculate confidence based on keyword matches, recency, source type
   - Return Low (0-50%), Medium (51-75%), High (76-100%)
   - **Files**: `internal/analyze/confidence.go`
   - **Constitution**: I (Correctness), IX (Modularity)
 
-- [ ] **T030** Implement risk scoring
+- [X] **T030** Implement risk scoring
   - Create `RiskScorer` in `internal/analyze/risk.go`
   - Implement severity-weighted algorithm (3H=1C, 6M=1C, 12L=1C)
   - Calculate control risk status (Green, Yellow, Red)
@@ -262,7 +262,7 @@
   - **Files**: `internal/analyze/risk.go`
   - **Constitution**: I (Correctness), IX (Modularity)
 
-- [ ] **T031** [P] Write analyze tests
+- [X] **T031** [P] Write analyze tests
   - Test keyword matching accuracy
   - Test confidence calculation
   - Test risk scoring formula
@@ -272,7 +272,7 @@
 
 ## Phase 3.8: Report Export
 
-- [ ] **T032** Implement report exporter
+- [X] **T032** Implement report exporter
   - Create `Exporter` in `internal/report/exporter.go`
   - Generate JSON report with frameworks, controls, evidence, findings
   - Add metadata (generated timestamp, version)
@@ -281,14 +281,14 @@
   - **Files**: `internal/report/exporter.go`
   - **Constitution**: I (Correctness), IX (Modularity)
 
-- [ ] **T033** Implement report formatter
+- [X] **T033** Implement report formatter
   - Create `Formatter` in `internal/report/formatter.go`
   - Add JSON pretty-printing
   - Add role-based filtering (manager vs engineer views)
   - **Files**: `internal/report/formatter.go`
   - **Constitution**: IV (UX), IX (Modularity)
 
-- [ ] **T034** [P] Write report tests
+- [X] **T034** [P] Write report tests
   - Test JSON structure matches schema
   - Test summary calculations
   - Test role-based filtering
@@ -298,7 +298,7 @@
 
 ## Phase 3.9: CLI Commands (Cobra)
 
-- [ ] **T035** Implement root command
+- [X] **T035** Implement root command
   - Create `root.go` in `cmd/root.go`
   - Add global flags (--config, --data-dir, --log-level, --verbose, --version)
   - Initialize Viper configuration
