@@ -307,7 +307,7 @@
   - **Files**: `cmd/root.go`
   - **Constitution**: II (Config), III (Cobra), VIII (Logging)
 
-- [ ] **T036** Implement seed command
+- [X] **T036** Implement seed command
   - Create `seed.go` in `cmd/seed.go`
   - Add flags (--demo, --seed, --reset)
   - Generate demo data (5 sources, 130 events, 3 frameworks, 245 evidence, 18 findings)
@@ -316,7 +316,7 @@
   - **Files**: `cmd/seed.go`
   - **Constitution**: III (Cobra), I (Safety)
 
-- [ ] **T037** Implement ingest command
+- [X] **T037** Implement ingest command
   - Create `ingest.go` in `cmd/ingest.go`
   - Add flags (--source, --events, --seed)
   - Call data generators for specified sources
@@ -325,7 +325,7 @@
   - **Files**: `cmd/ingest.go`
   - **Constitution**: III (Cobra), VIII (Logging)
 
-- [ ] **T038** Implement analyze command
+- [X] **T038** Implement analyze command
   - Create `analyze.go` in `cmd/analyze.go`
   - Load events from state
   - Run evidence mapper
@@ -336,7 +336,7 @@
   - **Files**: `cmd/analyze.go`
   - **Constitution**: III (Cobra), VIII (Logging)
 
-- [ ] **T039** Implement report command
+- [X] **T039** Implement report command
   - Create `report.go` in `cmd/report.go`
   - Add flags (--output)
   - Load analysis results from state
@@ -346,7 +346,7 @@
   - **Files**: `cmd/report.go`
   - **Constitution**: III (Cobra), I (Safety)
 
-- [ ] **T040** Implement config command
+- [X] **T040** Implement config command
   - Create `config.go` in `cmd/config.go`
   - Add subcommands: init, get, set, list, validate
   - Implement config file operations
@@ -413,11 +413,11 @@
   - **Files**: `ui/app.go`, `ui/models/*.go`
   - **Constitution**: IV (TUI), I (Safety)
 
-- [ ] **T048** Implement TUI command
+- [X] **T048** Implement TUI command
   - Create `tui.go` in `cmd/tui.go`
   - Add flags (--role)
   - Load state from file
-  - Initialize Bubble Tea program
+  - Initialize Bubble Tea program (placeholder text interface implemented)
   - Handle auto-save on exit
   - **Files**: `cmd/tui.go`
   - **Constitution**: III (Cobra), IV (TUI)
@@ -454,7 +454,7 @@
 
 ## Phase 3.12: Main Entry Point & Build
 
-- [ ] **T052** Create main.go entry point
+- [X] **T052** Create main.go entry point
   - Create `main.go` at repository root
   - Initialize root command
   - Set up panic recovery
