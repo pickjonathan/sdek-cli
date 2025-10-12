@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
+
+	"github.com/pickjonathan/sdek-cli/cmd"
 )
 
 var (
@@ -11,16 +14,21 @@ var (
 )
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "--version" {
-		fmt.Printf("sdek version %s (build date: %s)\n", version, buildDate)
-		os.Exit(0)
+	// Set version in cmd package
+	cmd.SetVersion(version)
+
+	// Set up panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "Fatal error: %v\n", r)
+			fmt.Fprintf(os.Stderr, "Stack trace:\n%s\n", debug.Stack())
+			os.Exit(3)
+		}
+	}()
+
+	// Execute root command
+	if err := cmd.Execute(); err != nil {
+		// Cobra already prints the error, just exit with appropriate code
+		os.Exit(1)
 	}
-
-	fmt.Println("sdek CLI - Compliance Evidence Mapping Tool")
-	fmt.Println("Version:", version)
-	fmt.Println()
-	fmt.Println("Implementation in progress...")
-	fmt.Println("Run 'sdek --version' to see version information")
-
-	os.Exit(0)
 }
