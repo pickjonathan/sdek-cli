@@ -150,3 +150,130 @@ func FormatPercentage(percent float64) string {
 		),
 	))
 }
+
+// Modal styles
+var (
+	// ModalOverlayStyle creates a dimmed overlay for modals
+	ModalOverlayStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("#000000")).
+				Foreground(lipgloss.Color("#888888"))
+
+	// ModalBoxStyle is the container for modal dialogs
+	ModalBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.DoubleBorder()).
+			BorderForeground(PrimaryColor).
+			Background(BackgroundColor).
+			Foreground(TextColor).
+			Padding(2, 4).
+			Width(60)
+
+	// ModalTitleStyle for modal dialog titles
+	ModalTitleStyle = lipgloss.NewStyle().
+			Foreground(PrimaryColor).
+			Bold(true).
+			Underline(true).
+			Align(lipgloss.Center)
+
+	// ModalButtonStyle for modal action buttons
+	ModalButtonStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(PrimaryColor).
+				Padding(0, 2).
+				Foreground(TextColor)
+
+	// ModalButtonActiveStyle for focused modal buttons
+	ModalButtonActiveStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(AccentColor).
+				Background(PrimaryColor).
+				Foreground(lipgloss.Color("#000000")).
+				Bold(true).
+				Padding(0, 2)
+)
+
+// Table styles
+var (
+	// TableHeaderStyle for table column headers
+	TableHeaderStyle = lipgloss.NewStyle().
+				Foreground(PrimaryColor).
+				Bold(true).
+				Underline(true).
+				Padding(0, 1).
+				Align(lipgloss.Left)
+
+	// TableCellStyle for regular table cells
+	TableCellStyle = lipgloss.NewStyle().
+			Foreground(TextColor).
+			Padding(0, 1).
+			Align(lipgloss.Left)
+
+	// TableCellHighlightStyle for highlighted/selected cells
+	TableCellHighlightStyle = lipgloss.NewStyle().
+				Foreground(AccentColor).
+				Bold(true).
+				Padding(0, 1).
+				Align(lipgloss.Left)
+
+	// TableBorderStyle for table borders
+	TableBorderStyle = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(BorderColor)
+
+	// TableRowSelectedStyle for selected table rows
+	TableRowSelectedStyle = lipgloss.NewStyle().
+				Background(BorderColor).
+				Foreground(PrimaryColor).
+				Bold(true)
+)
+
+// Spinner styles
+var (
+	// SpinnerStyle for loading spinners
+	SpinnerStyle = lipgloss.NewStyle().
+			Foreground(PrimaryColor).
+			Bold(true)
+
+	// SpinnerTextStyle for text next to spinners
+	SpinnerTextStyle = lipgloss.NewStyle().
+				Foreground(TextColor).
+				Italic(true)
+
+	// ProgressBarStyle for progress indicators
+	ProgressBarStyle = lipgloss.NewStyle().
+				Foreground(PrimaryColor).
+				Bold(true)
+
+	// ProgressBarEmptyStyle for unfilled progress
+	ProgressBarEmptyStyle = lipgloss.NewStyle().
+				Foreground(SubtleColor)
+)
+
+// Additional utility styles
+var (
+	// DividerStyle for horizontal dividers
+	DividerStyle = lipgloss.NewStyle().
+			Foreground(BorderColor).
+			Bold(false)
+
+	// TagStyle for small tags/badges
+	TagStyle = lipgloss.NewStyle().
+			Background(PrimaryColor).
+			Foreground(lipgloss.Color("#000000")).
+			Padding(0, 1).
+			Bold(true)
+
+	// CodeBlockStyle for code snippets
+	CodeBlockStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("#2A2A2A")).
+			Foreground(AccentColor).
+			Padding(1).
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(BorderColor)
+
+	// TooltipStyle for tooltips and hints
+	TooltipStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("#444444")).
+			Foreground(TextColor).
+			Padding(0, 1).
+			Italic(true)
+)
