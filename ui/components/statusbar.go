@@ -10,12 +10,12 @@ import (
 
 // StatusBarConfig defines configuration for the status bar
 type StatusBarConfig struct {
-	Width       int
-	LeftText    string
-	CenterText  string
-	RightText   string
-	Shortcuts   []Shortcut
-	ShowHelp    bool
+	Width      int
+	LeftText   string
+	CenterText string
+	RightText  string
+	Shortcuts  []Shortcut
+	ShowHelp   bool
 }
 
 // Shortcut represents a keyboard shortcut with key and description

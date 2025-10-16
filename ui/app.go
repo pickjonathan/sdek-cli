@@ -190,7 +190,7 @@ func (m Model) View() string {
 }
 
 // renderHelp renders the help screen
-func (m Model) View() string {
+func (m Model) renderHelp() string {
 	help := styles.TitleStyle.Render("Keyboard Shortcuts") + "\n\n"
 
 	shortcuts := []struct {
