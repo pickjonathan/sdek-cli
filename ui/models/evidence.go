@@ -103,10 +103,14 @@ func (m EvidenceModel) View() string {
 
 		cursor := " "
 		confidenceIcon := m.getConfidenceIcon(ev.ConfidenceLevel)
+		eventIDShort := ev.EventID
+		if len(ev.EventID) > 8 {
+			eventIDShort = ev.EventID[:8] + "..."
+		}
 		line := fmt.Sprintf("%s %s %s → %s",
 			cursor,
 			confidenceIcon,
-			ev.EventID[:8]+"...",
+			eventIDShort,
 			ev.ControlID,
 		)
 

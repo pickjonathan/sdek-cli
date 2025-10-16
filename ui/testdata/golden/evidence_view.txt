@@ -1,0 +1,10 @@
+Evidence Mappings
+                 
+
+Confidence: ● 1 High  ● 1 Medium  ● 1 Low
+
+    ✓ evt-001 → CC6.1  
+    ○ evt-002 → CC6.1  
+    △ evt-003 → CC6.2  
+
+↑/↓: Navigate | Esc: Back | q: Quit
