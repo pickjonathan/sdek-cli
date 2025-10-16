@@ -92,3 +92,32 @@ func (c *ConfidenceCalculator) GetLevel(score int) string {
 		return types.ConfidenceLevelHigh
 	}
 }
+
+// CalculateHybridConfidence computes weighted average of AI and heuristic confidence
+// Uses 70% AI confidence + 30% heuristic confidence as per spec
+func (c *ConfidenceCalculator) CalculateHybridConfidence(aiConfidence, heuristicConfidence int) int {
+	// Weighted average: 70% AI + 30% heuristic
+	weighted := float64(aiConfidence)*0.7 + float64(heuristicConfidence)*0.3
+	result := int(weighted)
+
+	// Ensure within bounds
+	if result < 0 {
+		return 0
+	}
+	if result > 100 {
+		return 100
+	}
+
+	return result
+}
+
+// ValidateConfidenceScore ensures score is within valid range (0-100)
+func (c *ConfidenceCalculator) ValidateConfidenceScore(score int) int {
+	if score < 0 {
+		return 0
+	}
+	if score > 100 {
+		return 100
+	}
+	return score
+}

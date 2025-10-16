@@ -13,6 +13,7 @@ sdek-cli automates compliance evidence mapping by ingesting data from multiple s
 - 🎯 **Evidence analysis**: Automatic evidence-to-control mapping with confidence scores
 - ⚠️ **Risk scoring**: Severity-weighted risk calculation and finding generation
 - 📑 **Report export**: JSON compliance reports with role-based filtering
+- 🌐 **HTML dashboards**: Interactive web-based compliance visualization
 - 🖥️ **Interactive TUI**: Terminal UI for exploring compliance data
 - ⚙️ **Configuration management**: Flexible config via files, environment variables, and flags
 
@@ -74,6 +75,9 @@ Navigate with:
 
 # Export compliance report
 ./sdek report --output ~/compliance-report.json
+
+# Generate interactive HTML dashboard
+./sdek html --input ~/compliance-report.json --output ~/dashboard.html
 ```
 
 ## Commands
@@ -107,6 +111,28 @@ Export compliance report to JSON.
 ```bash
 sdek report [--output ~/report.json] [--role manager|engineer]
 ```
+
+### `sdek html`
+Generate an interactive HTML compliance dashboard from a JSON report.
+
+```bash
+# Generate HTML from default report location
+sdek html
+
+# Specify input and output files
+sdek html --input ~/sdek-report.json --output ~/compliance-dashboard.html
+
+# Use short flags
+sdek html -i report.json -o dashboard.html
+```
+
+The HTML report provides:
+- 📊 Visual compliance dashboard with charts and gauges
+- 🔍 Interactive framework and control exploration
+- 🤖 Filterable evidence with AI enhancement indicators
+- ⚠️ Detailed findings analysis with severity indicators
+- 📋 Expandable control details with full context
+- 🌐 Self-contained file that works offline
 
 ### `sdek config`
 Manage configuration.
@@ -244,10 +270,11 @@ Events are mapped to controls using keyword-based heuristics:
 - [x] Core CLI commands (seed, ingest, analyze, report, config)
 - [x] Command tests
 - [x] TUI application structure
+- [x] Interactive HTML compliance dashboards
 - [ ] Full interactive TUI with Bubble Tea
 - [ ] Integration tests
 - [ ] Performance optimization (<100ms startup, 60fps TUI)
-- [ ] Multi-format export (PDF, HTML, Markdown)
+- [ ] Multi-format export (PDF, Markdown)
 - [ ] Real-time data ingestion
 - [ ] API endpoints for automation
 

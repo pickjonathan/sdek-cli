@@ -1,9 +1,12 @@
 package analyze
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/pickjonathan/sdek-cli/internal/ai"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
 )
 
@@ -375,4 +378,290 @@ func TestGenerateReasoning(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNewMapperWithAI verifies AI-enhanced mapper initialization
+func TestNewMapperWithAI(t *testing.T) {
+	t.Skip("Skipping until implementation complete")
+
+	// Create mock AI engine
+	mockEngine := &mockAIEngine{}
+	cache, err := newTestCache()
+	if err != nil {
+		t.Fatalf("Failed to create test cache: %v", err)
+	}
+
+	mapper := NewMapperWithAI(mockEngine, cache)
+
+	if mapper == nil {
+		t.Fatal("Mapper should not be nil")
+	}
+
+	if !mapper.aiEnabled {
+		t.Error("AI should be enabled")
+	}
+
+	if mapper.aiEngine == nil {
+		t.Error("AI engine should be set")
+	}
+
+	if mapper.cache == nil {
+		t.Error("Cache should be set")
+	}
+
+	if mapper.privacyFilter == nil {
+		t.Error("Privacy filter should be set")
+	}
+
+	if mapper.policyLoader == nil {
+		t.Error("Policy loader should be set")
+	}
+}
+
+// TestMapEventsWithAI_Success verifies AI-enhanced mapping with successful AI response
+func TestMapEventsWithAI_Success(t *testing.T) {
+	t.Skip("Skipping until implementation complete")
+
+	mockEngine := &mockAIEngine{
+		response: &mockAIResponse{
+			evidenceLinks: []string{"event-1"},
+			justification: "Event shows authentication implementation",
+			confidence:    85,
+			residualRisk:  "No multi-region support yet",
+		},
+	}
+
+	cache, _ := newTestCache()
+	mapper := NewMapperWithAI(mockEngine, cache)
+
+	events := []types.Event{
+		{
+			ID:        "event-1",
+			SourceID:  string(types.SourceTypeGit),
+			Timestamp: time.Now(),
+			EventType: types.EventTypeCommit,
+			Title:     "Add authentication",
+			Content:   "Implement OAuth with MFA",
+		},
+	}
+
+	evidence := mapper.MapEventsToControls(events)
+
+	if len(evidence) == 0 {
+		t.Fatal("Expected evidence to be mapped")
+	}
+
+	// Check AI fields are populated
+	if !evidence[0].AIAnalyzed {
+		t.Error("Expected AIAnalyzed to be true")
+	}
+
+	if evidence[0].AIConfidence != 85 {
+		t.Errorf("Expected AI confidence 85, got %d", evidence[0].AIConfidence)
+	}
+
+	if evidence[0].AIJustification == "" {
+		t.Error("Expected AI justification to be set")
+	}
+
+	if evidence[0].AnalysisMethod != "ai+heuristic" {
+		t.Errorf("Expected analysis method 'ai+heuristic', got %s", evidence[0].AnalysisMethod)
+	}
+
+	// Check hybrid confidence (70% AI + 30% heuristic)
+	if evidence[0].CombinedConfidence == 0 {
+		t.Error("Expected combined confidence to be calculated")
+	}
+}
+
+// TestMapEventsWithAI_Fallback verifies fallback to heuristics when AI fails
+func TestMapEventsWithAI_Fallback(t *testing.T) {
+	t.Skip("Skipping until implementation complete")
+
+	mockEngine := &mockAIEngine{
+		shouldError: true,
+	}
+
+	cache, _ := newTestCache()
+	mapper := NewMapperWithAI(mockEngine, cache)
+
+	events := []types.Event{
+		{
+			ID:        "event-1",
+			SourceID:  string(types.SourceTypeGit),
+			Timestamp: time.Now(),
+			EventType: types.EventTypeCommit,
+			Title:     "Add authentication",
+			Content:   "Implement OAuth with MFA",
+		},
+	}
+
+	evidence := mapper.MapEventsToControls(events)
+
+	if len(evidence) == 0 {
+		t.Fatal("Expected fallback to heuristic mapping")
+	}
+
+	// Check that heuristic method was used
+	if evidence[0].AnalysisMethod != "heuristic-only" {
+		t.Errorf("Expected analysis method 'heuristic-only', got %s", evidence[0].AnalysisMethod)
+	}
+
+	if evidence[0].AIAnalyzed {
+		t.Error("Expected AIAnalyzed to be false on fallback")
+	}
+}
+
+// TestMapEventsWithAI_CacheHit verifies cache functionality
+func TestMapEventsWithAI_CacheHit(t *testing.T) {
+	t.Skip("Skipping until implementation complete")
+
+	mockEngine := &mockAIEngine{
+		callCount: 0,
+	}
+
+	cache, _ := newTestCache()
+	mapper := NewMapperWithAI(mockEngine, cache)
+
+	events := []types.Event{
+		{
+			ID:        "event-1",
+			SourceID:  string(types.SourceTypeGit),
+			Timestamp: time.Now(),
+			EventType: types.EventTypeCommit,
+			Title:     "Add authentication",
+			Content:   "Implement OAuth",
+		},
+	}
+
+	// First call - should hit AI
+	evidence1 := mapper.MapEventsToControls(events)
+	firstCallCount := mockEngine.callCount
+
+	// Second call - should hit cache
+	evidence2 := mapper.MapEventsToControls(events)
+	secondCallCount := mockEngine.callCount
+
+	if firstCallCount == 0 {
+		t.Error("Expected AI engine to be called on first request")
+	}
+
+	if secondCallCount != firstCallCount {
+		t.Error("Expected AI engine to NOT be called on second request (cache hit)")
+	}
+
+	if len(evidence1) != len(evidence2) {
+		t.Error("Expected same evidence from cache")
+	}
+
+	if evidence2[0].AnalysisMethod != "ai+heuristic (cached)" {
+		t.Errorf("Expected cached analysis method, got %s", evidence2[0].AnalysisMethod)
+	}
+}
+
+// TestMapEventsWithAI_PrivacyRedaction verifies PII redaction before AI
+func TestMapEventsWithAI_PrivacyRedaction(t *testing.T) {
+	t.Skip("Skipping until implementation complete")
+
+	mockEngine := &mockAIEngine{
+		captureRequest: true,
+	}
+
+	cache, _ := newTestCache()
+	mapper := NewMapperWithAI(mockEngine, cache)
+
+	events := []types.Event{
+		{
+			ID:        "event-1",
+			SourceID:  string(types.SourceTypeGit),
+			Timestamp: time.Now(),
+			EventType: types.EventTypeCommit,
+			Title:     "Add user auth",
+			Content:   "Email: user@example.com, API Key: sk-abc123def456",
+		},
+	}
+
+	mapper.MapEventsToControls(events)
+
+	// Check that captured request had redacted content
+	if mockEngine.lastRequest == nil {
+		t.Fatal("Expected AI engine to capture request")
+	}
+
+	// Verify email and API key were redacted
+	for _, event := range mockEngine.lastRequest.Events {
+		if event.Content == events[0].Content {
+			t.Error("Expected event content to be redacted")
+		}
+		if !containsRedactionMarker(event.Content) {
+			t.Error("Expected redaction markers in content")
+		}
+	}
+}
+
+// Helper functions for tests
+func newTestCache() (*ai.Cache, error) {
+	// Create temporary cache directory
+	return ai.NewCache("")
+}
+
+type mockAIEngine struct {
+	response       *mockAIResponse
+	shouldError    bool
+	callCount      int
+	captureRequest bool
+	lastRequest    *ai.AnalysisRequest
+}
+
+type mockAIResponse struct {
+	evidenceLinks []string
+	justification string
+	confidence    int
+	residualRisk  string
+}
+
+func (m *mockAIEngine) Analyze(ctx context.Context, req *ai.AnalysisRequest) (*ai.AnalysisResponse, error) {
+	m.callCount++
+
+	if m.captureRequest {
+		m.lastRequest = req
+	}
+
+	if m.shouldError {
+		return nil, ai.ErrProviderUnavailable
+	}
+
+	if m.response == nil {
+		m.response = &mockAIResponse{
+			evidenceLinks: []string{req.Events[0].EventID},
+			justification: "Mock analysis",
+			confidence:    85,
+			residualRisk:  "",
+		}
+	}
+
+	return &ai.AnalysisResponse{
+		RequestID:     req.RequestID,
+		EvidenceLinks: m.response.evidenceLinks,
+		Justification: m.response.justification,
+		Confidence:    m.response.confidence,
+		ResidualRisk:  m.response.residualRisk,
+		Provider:      "mock",
+		Model:         "mock-model",
+		TokensUsed:    100,
+		Timestamp:     time.Now(),
+		CacheHit:      false,
+	}, nil
+}
+
+func (m *mockAIEngine) Provider() string {
+	return "mock"
+}
+
+func (m *mockAIEngine) Health(ctx context.Context) error {
+	return nil
+}
+
+func containsRedactionMarker(s string) bool {
+	return strings.Contains(s, "[REDACTED") || strings.Contains(s, "[EMAIL") || strings.Contains(s, "[API_KEY")
 }

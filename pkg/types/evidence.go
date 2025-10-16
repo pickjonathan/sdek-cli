@@ -16,6 +16,15 @@ type Evidence struct {
 	MappedAt        time.Time `json:"mapped_at"`
 	Keywords        []string  `json:"keywords"`
 	Reasoning       string    `json:"reasoning"`
+
+	// AI analysis metadata (Feature 002: AI Evidence Analysis)
+	AIAnalyzed          bool   `json:"ai_analyzed"`          // True if AI was used for this evidence
+	AIJustification     string `json:"ai_justification"`     // AI-generated explanation
+	AIConfidence        int    `json:"ai_confidence"`        // AI confidence score (0-100)
+	AIResidualRisk      string `json:"ai_residual_risk"`     // AI risk notes
+	HeuristicConfidence int    `json:"heuristic_confidence"` // Original keyword-based score (0-100)
+	CombinedConfidence  int    `json:"combined_confidence"`  // Weighted average (70% AI + 30% heuristic)
+	AnalysisMethod      string `json:"analysis_method"`      // "ai+heuristic" | "heuristic-only" | "no-ai"
 }
 
 // Confidence level constants

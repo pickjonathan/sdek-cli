@@ -92,4 +92,227 @@ func TestDefaultConfig(t *testing.T) {
 	if len(config.Sources.Enabled) != 5 {
 		t.Errorf("expected 5 sources enabled, got %d", len(config.Sources.Enabled))
 	}
+
+	// Test AI config defaults
+	if config.AI.Enabled {
+		t.Error("expected AI to be disabled by default")
+	}
+	if config.AI.Provider != AIProviderOpenAI {
+		t.Errorf("expected default AI provider %s, got %s", AIProviderOpenAI, config.AI.Provider)
+	}
+	if config.AI.Model != "gpt-4" {
+		t.Errorf("expected default AI model 'gpt-4', got %s", config.AI.Model)
+	}
+	if config.AI.Timeout != 60 {
+		t.Errorf("expected default AI timeout 60, got %d", config.AI.Timeout)
+	}
+	if config.AI.RateLimit != 10 {
+		t.Errorf("expected default AI rate limit 10, got %d", config.AI.RateLimit)
+	}
+}
+
+func TestValidateAIConfig(t *testing.T) {
+	t.Skip("Skipping until implementation complete")
+
+	tests := []struct {
+		name    string
+		config  *Config
+		wantErr bool
+	}{
+		{
+			name: "AI disabled - valid",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled: false,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "AI enabled with OpenAI - valid",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled:   true,
+					Provider:  AIProviderOpenAI,
+					Model:     "gpt-4",
+					OpenAIKey: "sk-test123",
+					Timeout:   60,
+					RateLimit: 10,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "AI enabled with Anthropic - valid",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled:      true,
+					Provider:     AIProviderAnthropic,
+					Model:        "claude-3-opus",
+					AnthropicKey: "sk-ant-test123",
+					Timeout:      60,
+					RateLimit:    10,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid AI provider",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled:  true,
+					Provider: "invalid",
+					Model:    "gpt-4",
+					Timeout:  60,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty model when enabled",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled:   true,
+					Provider:  AIProviderOpenAI,
+					Model:     "",
+					OpenAIKey: "sk-test",
+					Timeout:   60,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative timeout",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled:   true,
+					Provider:  AIProviderOpenAI,
+					Model:     "gpt-4",
+					OpenAIKey: "sk-test",
+					Timeout:   -1,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "zero timeout",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled:   true,
+					Provider:  AIProviderOpenAI,
+					Model:     "gpt-4",
+					OpenAIKey: "sk-test",
+					Timeout:   0,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative rate limit",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled:   true,
+					Provider:  AIProviderOpenAI,
+					Model:     "gpt-4",
+					OpenAIKey: "sk-test",
+					Timeout:   60,
+					RateLimit: -1,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "OpenAI without API key",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled:   true,
+					Provider:  AIProviderOpenAI,
+					Model:     "gpt-4",
+					OpenAIKey: "",
+					Timeout:   60,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Anthropic without API key",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled:      true,
+					Provider:     AIProviderAnthropic,
+					Model:        "claude-3-opus",
+					AnthropicKey: "",
+					Timeout:      60,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "zero rate limit - valid (unlimited)",
+			config: &Config{
+				LogLevel: "info",
+				Theme:    "dark",
+				UserRole: RoleComplianceManager,
+				Export:   ExportConfig{Format: "json"},
+				AI: AIConfig{
+					Enabled:   true,
+					Provider:  AIProviderOpenAI,
+					Model:     "gpt-4",
+					OpenAIKey: "sk-test",
+					Timeout:   60,
+					RateLimit: 0,
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateConfig(tt.config)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateConfig() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 }

@@ -210,6 +210,63 @@ Generates comprehensive compliance reports including:
 
 ---
 
+### sdek html
+
+Generate an interactive HTML compliance dashboard from a JSON report.
+
+**Usage:**
+```bash
+sdek html [flags]
+```
+
+**Flags:**
+- `-i, --input string` - Input JSON report file (default: `~/sdek-report.json`)
+- `-o, --output string` - Output HTML file (default: `~/sdek-report.html`)
+
+**Examples:**
+```bash
+# Generate HTML from default report location
+sdek html
+
+# Specify input and output files
+sdek html --input ~/sdek-report.json --output ~/compliance-dashboard.html
+
+# Use short flags
+sdek html -i report.json -o dashboard.html
+```
+
+**Description:**
+Creates a standalone, interactive HTML dashboard from a JSON compliance report. The HTML file includes:
+- **Visual Dashboard**: Summary cards with key metrics and compliance scores
+- **Interactive Tabs**: Navigate between Overview, Frameworks, Findings, and Evidence
+- **Framework View**: Expandable framework sections with risk breakdown
+- **Control Cards**: Color-coded risk indicators with evidence and finding counts
+- **Evidence Filtering**: Filter by AI-enhanced vs heuristic evidence
+- **AI Indicators**: Special badges and styling for AI-analyzed evidence
+- **Finding Details**: Severity-colored findings with recommendations
+- **Modal Details**: Click controls for detailed evidence inspection
+- **Search**: Real-time search across controls and evidence
+- **Responsive Design**: Works on desktop, tablet, and mobile devices
+
+**HTML Report Features:**
+- 📊 **Self-contained**: All CSS and JavaScript embedded, no external dependencies
+- 🌐 **Offline Ready**: Works without internet connection
+- 📤 **Shareable**: Can be emailed or hosted on any web server
+- 🔒 **Audit Trail**: Perfect for compliance audits and stakeholder reviews
+- 🎨 **Modern Design**: Purple gradient theme with smooth animations
+- 🤖 **AI Highlighting**: Green borders for AI-enhanced evidence
+
+**File Structure:**
+The output HTML file embeds the entire JSON report and renders it dynamically using JavaScript. File size is typically ~800KB for a full report with AI analysis.
+
+**Browser Compatibility:**
+- ✅ Chrome/Edge 90+
+- ✅ Firefox 88+
+- ✅ Safari 14+
+- ✅ Mobile browsers (iOS Safari, Chrome Mobile)
+
+---
+
 ### sdek config
 
 Manage sdek configuration settings.

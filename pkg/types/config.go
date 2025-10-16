@@ -11,6 +11,7 @@ type Config struct {
 	Export     ExportConfig     `json:"export" mapstructure:"export"`
 	Frameworks FrameworksConfig `json:"frameworks" mapstructure:"frameworks"`
 	Sources    SourcesConfig    `json:"sources" mapstructure:"sources"`
+	AI         AIConfig         `json:"ai" mapstructure:"ai"`
 }
 
 // ExportConfig contains export-related settings
@@ -29,6 +30,27 @@ type SourcesConfig struct {
 	Enabled []string `json:"enabled" mapstructure:"enabled"`
 }
 
+// AIConfig contains AI analysis settings (Feature 002: AI Evidence Analysis)
+type AIConfig struct {
+	Enabled      bool   `json:"enabled" mapstructure:"enabled"`
+	Provider     string `json:"provider" mapstructure:"provider"`
+	Model        string `json:"model" mapstructure:"model"`
+	OpenAIKey    string `json:"openai_key" mapstructure:"openai_key"`
+	AnthropicKey string `json:"anthropic_key" mapstructure:"anthropic_key"`
+	Timeout      int    `json:"timeout" mapstructure:"timeout"`       // seconds
+	RateLimit    int    `json:"rate_limit" mapstructure:"rate_limit"` // requests per minute
+	CacheDir     string `json:"cache_dir" mapstructure:"cache_dir"`   // cache directory path
+}
+
+// AI provider constants
+const (
+	AIProviderOpenAI    = "openai"
+	AIProviderAnthropic = "anthropic"
+)
+
+// ValidAIProviders is the list of valid AI providers
+var ValidAIProviders = []string{AIProviderOpenAI, AIProviderAnthropic}
+
 // DefaultConfig returns a Config with default values
 func DefaultConfig() *Config {
 	return &Config{
@@ -45,6 +67,14 @@ func DefaultConfig() *Config {
 		},
 		Sources: SourcesConfig{
 			Enabled: ValidSourceTypes,
+		},
+		AI: AIConfig{
+			Enabled:   false, // Disabled by default (opt-in)
+			Provider:  AIProviderOpenAI,
+			Model:     "gpt-4", // Default OpenAI model
+			Timeout:   60,      // 60 seconds
+			RateLimit: 10,      // 10 requests per minute
+			CacheDir:  "$HOME/.sdek/cache/ai",
 		},
 	}
 }
@@ -132,6 +162,44 @@ func ValidateConfig(c *Config) error {
 		}
 		if !valid {
 			return fmt.Errorf("invalid source: %s, must be one of %v", src, ValidSourceTypes)
+		}
+	}
+
+	// Validate AI config
+	if c.AI.Enabled {
+		// Validate provider
+		valid = false
+		for _, provider := range ValidAIProviders {
+			if c.AI.Provider == provider {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return fmt.Errorf("invalid AI provider: %s, must be one of %v", c.AI.Provider, ValidAIProviders)
+		}
+
+		// Validate model is not empty
+		if c.AI.Model == "" {
+			return fmt.Errorf("AI model cannot be empty when AI is enabled")
+		}
+
+		// Validate timeout
+		if c.AI.Timeout <= 0 {
+			return fmt.Errorf("AI timeout must be positive, got %d", c.AI.Timeout)
+		}
+
+		// Validate rate limit
+		if c.AI.RateLimit < 0 {
+			return fmt.Errorf("AI rate limit cannot be negative, got %d", c.AI.RateLimit)
+		}
+
+		// Validate API keys
+		if c.AI.Provider == AIProviderOpenAI && c.AI.OpenAIKey == "" {
+			return fmt.Errorf("OpenAI API key required when provider is openai")
+		}
+		if c.AI.Provider == AIProviderAnthropic && c.AI.AnthropicKey == "" {
+			return fmt.Errorf("Anthropic API key required when provider is anthropic")
 		}
 	}
 
