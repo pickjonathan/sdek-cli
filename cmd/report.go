@@ -152,7 +152,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Findings:    %d\n", len(state.Findings))
 	fmt.Printf("  Events:      %d\n", len(state.Events))
 	fmt.Println()
-	
+
 	// Show compliance summary
 	fmt.Println("Compliance Summary:")
 	for _, fw := range state.Frameworks {
@@ -165,7 +165,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s %-15s %.1f%%\n", status, fw.Name, fw.CompliancePercentage)
 	}
 	fmt.Println()
-	
+
 	fmt.Printf("View the full report at: %s\n", reportOutput)
 
 	slog.Info("Report command completed successfully")

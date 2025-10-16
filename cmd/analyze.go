@@ -70,24 +70,24 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 	// Calculate risk scores and update control statuses
 	slog.Info("Calculating risk scores")
 	scorer := analyze.NewRiskScorer()
-	
+
 	// Clear existing findings
 	state.Findings = []types.Finding{}
-	
+
 	// Update each control with its risk status
 	for i := range state.Controls {
 		control := &state.Controls[i]
-		
+
 		// Get evidence for this control
 		controlEvidence := filterEvidenceByControl(evidence, control.ID)
 		control.EvidenceCount = len(controlEvidence)
-		
+
 		// Generate findings for this control
 		controlFindings := scorer.GenerateFindingsForControl(*control, controlEvidence)
-		
+
 		// Calculate risk status
 		control.RiskStatus = scorer.CalculateControlRisk(controlFindings, len(controlEvidence))
-		
+
 		// Add findings to state
 		state.Findings = append(state.Findings, controlFindings...)
 	}
@@ -97,11 +97,11 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 	for i := range state.Frameworks {
 		framework := &state.Frameworks[i]
 		frameworkControls := filterControlsByFramework(state.Controls, framework.ID)
-		
+
 		greenCount := 0
 		yellowCount := 0
 		redCount := 0
-		
+
 		for _, ctrl := range frameworkControls {
 			switch ctrl.RiskStatus {
 			case types.RiskStatusGreen:
@@ -112,12 +112,12 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 				redCount++
 			}
 		}
-		
+
 		if len(frameworkControls) > 0 {
 			framework.CompliancePercentage = float64(greenCount) / float64(len(frameworkControls)) * 100
 		}
-		
-		slog.Info("Framework status", 
+
+		slog.Info("Framework status",
 			"framework", framework.Name,
 			"green", greenCount,
 			"yellow", yellowCount,
@@ -144,7 +144,7 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %-15s %.1f%% compliant\n", fw.Name, fw.CompliancePercentage)
 	}
 	fmt.Println()
-	
+
 	// Show risk distribution
 	greenCount := 0
 	yellowCount := 0
@@ -159,13 +159,13 @@ func runAnalyze(cmd *cobra.Command, args []string) error {
 			redCount++
 		}
 	}
-	
+
 	fmt.Println("Risk Distribution:")
 	fmt.Printf("  Green (Low Risk):     %d controls\n", greenCount)
 	fmt.Printf("  Yellow (Medium Risk): %d controls\n", yellowCount)
 	fmt.Printf("  Red (High Risk):      %d controls\n", redCount)
 	fmt.Println()
-	
+
 	fmt.Println("Next steps:")
 	fmt.Println("  - Run 'sdek tui' to explore the analysis interactively")
 	fmt.Println("  - Run 'sdek report' to export a detailed compliance report")

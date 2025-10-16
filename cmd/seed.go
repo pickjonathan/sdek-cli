@@ -138,7 +138,7 @@ func runSeed(cmd *cobra.Command, args []string) error {
 	for _, source := range sources {
 		var events []types.Event
 		var gen ingest.Generator
-		
+
 		switch source.Type {
 		case "git":
 			gen = ingest.NewGitGenerator(seedValue)
@@ -156,7 +156,7 @@ func runSeed(cmd *cobra.Command, args []string) error {
 			gen = ingest.NewDocsGenerator(seedValue)
 			events, err = gen.Generate(seedValue, 25)
 		}
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to generate events for %s: %w", source.Name, err)
 		}
@@ -189,21 +189,21 @@ func runSeed(cmd *cobra.Command, args []string) error {
 	// Calculate risk scores and update control statuses
 	slog.Info("Calculating risk scores")
 	scorer := analyze.NewRiskScorer()
-	
+
 	// Update each control with its risk status
 	for i := range state.Controls {
 		control := &state.Controls[i]
-		
+
 		// Get evidence for this control
 		controlEvidence := filterEvidenceByControl(evidence, control.ID)
 		control.EvidenceCount = len(controlEvidence)
-		
+
 		// Generate findings for this control
 		controlFindings := scorer.GenerateFindingsForControl(*control, controlEvidence)
-		
+
 		// Calculate risk status
 		control.RiskStatus = scorer.CalculateControlRisk(controlFindings, len(controlEvidence))
-		
+
 		// Add findings to state
 		state.Findings = append(state.Findings, controlFindings...)
 	}

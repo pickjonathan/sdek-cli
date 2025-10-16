@@ -132,7 +132,7 @@ var configGetCmd = &cobra.Command{
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
-		
+
 		if !viper.IsSet(key) {
 			return fmt.Errorf("configuration key '%s' not found", key)
 		}
@@ -163,15 +163,15 @@ var configSetCmd = &cobra.Command{
 			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 				homeDir, _ := os.UserHomeDir()
 				configPath := filepath.Join(homeDir, ".sdek", "config.yaml")
-				
+
 				// Create directory
 				if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 					return fmt.Errorf("failed to create config directory: %w", err)
 				}
-				
+
 				// Set config file
 				viper.SetConfigFile(configPath)
-				
+
 				// Write config
 				if err := viper.WriteConfig(); err != nil {
 					return fmt.Errorf("failed to write config: %w", err)
@@ -192,7 +192,7 @@ var configListCmd = &cobra.Command{
 	Long:  `Display all configuration keys and their current values`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		settings := viper.AllSettings()
-		
+
 		if len(settings) == 0 {
 			fmt.Println("No configuration values found")
 			return nil
@@ -200,9 +200,9 @@ var configListCmd = &cobra.Command{
 
 		fmt.Println("Current configuration:")
 		fmt.Println()
-		
+
 		printSettings(settings, "")
-		
+
 		return nil
 	},
 }
@@ -213,7 +213,7 @@ func printSettings(settings map[string]interface{}, prefix string) {
 		if prefix != "" {
 			fullKey = prefix + "." + key
 		}
-		
+
 		switch v := value.(type) {
 		case map[string]interface{}:
 			printSettings(v, fullKey)
@@ -250,7 +250,7 @@ var configValidateCmd = &cobra.Command{
 				homeDir, _ := os.UserHomeDir()
 				dataDir = filepath.Join(homeDir, dataDir[2:])
 			}
-			
+
 			// Check if directory exists or can be created
 			if err := os.MkdirAll(dataDir, 0755); err != nil {
 				return fmt.Errorf("invalid data-dir '%s': %w", dataDir, err)

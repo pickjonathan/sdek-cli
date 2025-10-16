@@ -84,7 +84,7 @@ func runIngest(cmd *cobra.Command, args []string) error {
 
 	// Generate events for the specified source
 	slog.Info("Generating events", "source", ingestSource, "count", ingestEvents)
-	
+
 	var gen ingest.Generator
 	var events []types.Event
 

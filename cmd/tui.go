@@ -87,12 +87,12 @@ func runTUI(cmd *cobra.Command, args []string) error {
 
 	// TODO: Implement Bubble Tea TUI
 	// For now, provide a simple text-based interface
-	
+
 	fmt.Println("╔════════════════════════════════════════════════════════════════════════╗")
 	fmt.Println("║                    sdek - Compliance Evidence Mapping                  ║")
 	fmt.Println("╚════════════════════════════════════════════════════════════════════════╝")
 	fmt.Println()
-	
+
 	fmt.Println("📊 Data Summary:")
 	fmt.Println()
 	fmt.Printf("  Sources:    %d\n", len(state.Sources))
@@ -104,14 +104,14 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		fmt.Printf("    %s %-15s %d events\n", status, source.Name, source.EventCount)
 	}
 	fmt.Println()
-	
+
 	fmt.Printf("  Events:     %d\n", len(state.Events))
 	fmt.Printf("  Frameworks: %d\n", len(state.Frameworks))
 	fmt.Printf("  Controls:   %d\n", len(state.Controls))
 	fmt.Printf("  Evidence:   %d\n", len(state.Evidence))
 	fmt.Printf("  Findings:   %d\n", len(state.Findings))
 	fmt.Println()
-	
+
 	fmt.Println("🎯 Compliance Status:")
 	fmt.Println()
 	for _, fw := range state.Frameworks {
@@ -121,12 +121,12 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		} else if fw.CompliancePercentage >= 60 {
 			status = "⚠"
 		}
-		
+
 		bar := makeProgressBar(fw.CompliancePercentage, 30)
 		fmt.Printf("  %s %-15s [%s] %.1f%%\n", status, fw.Name, bar, fw.CompliancePercentage)
 	}
 	fmt.Println()
-	
+
 	// Show risk distribution
 	greenCount := 0
 	yellowCount := 0
@@ -141,24 +141,24 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			redCount++
 		}
 	}
-	
+
 	fmt.Println("⚠️  Risk Distribution:")
 	fmt.Println()
 	fmt.Printf("  🟢 Green (Low Risk):     %3d controls\n", greenCount)
 	fmt.Printf("  🟡 Yellow (Medium Risk): %3d controls\n", yellowCount)
 	fmt.Printf("  🔴 Red (High Risk):      %3d controls\n", redCount)
 	fmt.Println()
-	
+
 	// Show recent findings
 	if len(state.Findings) > 0 {
 		fmt.Println("🔍 Recent Findings:")
 		fmt.Println()
-		
+
 		count := len(state.Findings)
 		if count > 5 {
 			count = 5
 		}
-		
+
 		for i := 0; i < count; i++ {
 			finding := state.Findings[i]
 			severity := "  "
@@ -172,18 +172,18 @@ func runTUI(cmd *cobra.Command, args []string) error {
 			case "low":
 				severity = "🟢"
 			}
-			
+
 			fmt.Printf("  %s [%-8s] %s\n", severity, finding.Severity, finding.Title)
 			fmt.Printf("     Control: %s - %s\n", finding.ControlID, finding.Description)
 			fmt.Println()
 		}
-		
+
 		if len(state.Findings) > 5 {
 			fmt.Printf("  ... and %d more findings\n", len(state.Findings)-5)
 			fmt.Println()
 		}
 	}
-	
+
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println()
 	fmt.Println("NOTE: Full interactive TUI (Bubble Tea) is under development.")
@@ -203,7 +203,7 @@ func makeProgressBar(percentage float64, width int) string {
 	if filled < 0 {
 		filled = 0
 	}
-	
+
 	bar := ""
 	for i := 0; i < filled; i++ {
 		bar += "█"
@@ -211,6 +211,6 @@ func makeProgressBar(percentage float64, width int) string {
 	for i := filled; i < width; i++ {
 		bar += "░"
 	}
-	
+
 	return bar
 }
