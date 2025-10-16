@@ -36,6 +36,15 @@ type Model struct {
 	controlsModel   models.ControlsModel
 	evidenceModel   models.EvidenceModel
 
+	// Search mode
+	searchMode   bool
+	searchQuery  string
+	searchActive bool
+
+	// Status messages
+	statusMessage string
+	showStatus    bool
+
 	err error
 }
 
@@ -77,24 +86,112 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "esc", "backspace":
-			// Go back to home
-			if m.currentScreen != ScreenHome {
+			// Exit search mode or go back to home
+			if m.searchMode {
+				m.searchMode = false
+				m.searchQuery = ""
+				m.searchActive = false
+				m.statusMessage = ""
+				m.showStatus = false
+			} else if m.currentScreen != ScreenHome {
 				m.currentScreen = ScreenHome
 			}
 			return m, nil
 
+		case "/":
+			// Enter search mode
+			m.searchMode = true
+			m.searchQuery = ""
+			m.searchActive = false
+			m.statusMessage = "Search: "
+			m.showStatus = true
+			return m, nil
+
+		case "r":
+			// Refresh data
+			if !m.searchMode {
+				state, err := store.Load()
+				if err != nil {
+					m.statusMessage = "Error refreshing: " + err.Error()
+					m.showStatus = true
+				} else {
+					m.state = state
+					// Recreate models with new state
+					m.homeModel = models.NewHomeModel(state)
+					m.sourcesModel = models.NewSourcesModel(state)
+					m.frameworksModel = models.NewFrameworksModel(state)
+					m.controlsModel = models.NewControlsModel(state, "")
+					m.evidenceModel = models.NewEvidenceModel(state, "")
+					m.statusMessage = "✓ Data refreshed"
+					m.showStatus = true
+				}
+			}
+			return m, nil
+
+		case "e":
+			// Export current view
+			if !m.searchMode {
+				m.statusMessage = "Export functionality coming soon! Use 'sdek report' command for now."
+				m.showStatus = true
+			}
+			return m, nil
+
+		case "enter":
+			// Execute search
+			if m.searchMode {
+				m.searchActive = true
+				m.searchMode = false
+				if m.searchQuery == "" {
+					m.statusMessage = "✗ Empty search query"
+				} else {
+					m.statusMessage = fmt.Sprintf("🔍 Searching for: %s", m.searchQuery)
+				}
+				m.showStatus = true
+				return m, nil
+			}
+
 		case "1":
-			m.currentScreen = ScreenSources
+			if !m.searchMode {
+				m.currentScreen = ScreenSources
+			}
 			return m, nil
 		case "2":
-			m.currentScreen = ScreenFrameworks
+			if !m.searchMode {
+				m.currentScreen = ScreenFrameworks
+			}
 			return m, nil
 		case "3":
-			m.currentScreen = ScreenControls
+			if !m.searchMode {
+				m.currentScreen = ScreenControls
+			}
 			return m, nil
 		case "4":
-			m.currentScreen = ScreenEvidence
+			if !m.searchMode {
+				m.currentScreen = ScreenEvidence
+			}
 			return m, nil
+
+		default:
+			// Handle search input
+			if m.searchMode {
+				switch msg.String() {
+				case "backspace", "delete":
+					if len(m.searchQuery) > 0 {
+						m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+						m.statusMessage = "Search: " + m.searchQuery
+					} else {
+						m.statusMessage = "Search: "
+					}
+					return m, nil
+				default:
+					// Add character to search query if it's printable
+					if len(msg.String()) == 1 {
+						m.searchQuery += msg.String()
+						m.statusMessage = "Search: " + m.searchQuery
+						return m, nil
+					}
+				}
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -173,20 +270,29 @@ func (m Model) View() string {
 	}
 
 	// Render current screen
+	var content string
 	switch m.currentScreen {
 	case ScreenHome:
-		return m.homeModel.View()
+		content = m.homeModel.View()
 	case ScreenSources:
-		return m.sourcesModel.View()
+		content = m.sourcesModel.View()
 	case ScreenFrameworks:
-		return m.frameworksModel.View()
+		content = m.frameworksModel.View()
 	case ScreenControls:
-		return m.controlsModel.View()
+		content = m.controlsModel.View()
 	case ScreenEvidence:
-		return m.evidenceModel.View()
+		content = m.evidenceModel.View()
 	default:
-		return m.homeModel.View()
+		content = m.homeModel.View()
 	}
+
+	// Add status bar if there's a status message
+	if m.showStatus && m.statusMessage != "" {
+		statusBar := styles.StatusBarStyle.Render(m.statusMessage)
+		content = content + "\n" + statusBar
+	}
+
+	return content
 }
 
 // renderHelp renders the help screen
@@ -198,10 +304,13 @@ func (m Model) renderHelp() string {
 		desc string
 	}{
 		{"1-4", "Navigate to screen (Sources, Frameworks, Controls, Evidence)"},
-		{"↑/↓", "Navigate lists"},
-		{"←/→", "Navigate tabs"},
+		{"↑/↓/j/k", "Navigate lists (vim-style)"},
+		{"←/→/h/l", "Navigate tabs (vim-style)"},
 		{"Enter", "Select item"},
-		{"Esc/Backspace", "Go back to home"},
+		{"/", "Search mode"},
+		{"r", "Refresh data"},
+		{"e", "Export current view"},
+		{"Esc/Backspace", "Go back / Exit search"},
 		{"?", "Toggle help"},
 		{"q/Ctrl+C", "Quit"},
 	}

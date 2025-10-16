@@ -43,6 +43,25 @@ func (m HomeModel) Update(msg tea.Msg) (HomeModel, tea.Cmd) {
 			m.selectedScreen = 3
 		case "4":
 			m.selectedScreen = 4
+		case "right", "l":
+			// Cycle forward through screens (1->2->3->4->1)
+			if m.selectedScreen == 0 {
+				m.selectedScreen = 1
+			} else {
+				m.selectedScreen = (m.selectedScreen % 4) + 1
+			}
+		case "left", "h":
+			// Cycle backward through screens (4->3->2->1->4)
+			if m.selectedScreen == 0 {
+				m.selectedScreen = 4
+			} else if m.selectedScreen == 1 {
+				m.selectedScreen = 4
+			} else {
+				m.selectedScreen = m.selectedScreen - 1
+			}
+		case "enter":
+			// Enter key doesn't change selectedScreen, just returns it
+			// The app.go will handle the navigation
 		}
 	}
 	return m, nil
@@ -101,6 +120,24 @@ func (m HomeModel) makeCard(title, value, key, icon string) string {
 		cardWidth = 15
 	}
 
+	// Check if this card is selected
+	keyNum := 0
+	if key == "1" {
+		keyNum = 1
+	} else if key == "2" {
+		keyNum = 2
+	} else if key == "3" {
+		keyNum = 3
+	} else if key == "4" {
+		keyNum = 4
+	}
+
+	cardStyle := styles.CardStyle.Width(cardWidth)
+	if keyNum == m.selectedScreen {
+		// Highlight selected card
+		cardStyle = cardStyle.BorderForeground(lipgloss.Color(styles.AccentColor))
+	}
+
 	content := fmt.Sprintf("%s %s\n\n%s\n\nPress %s",
 		icon,
 		title,
@@ -108,7 +145,7 @@ func (m HomeModel) makeCard(title, value, key, icon string) string {
 		styles.KeyStyle.Render(key),
 	)
 
-	return styles.CardStyle.Width(cardWidth).Render(content)
+	return cardStyle.Render(content)
 }
 
 // renderCompliance renders the compliance status section
