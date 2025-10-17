@@ -79,6 +79,16 @@ func (cl *ConfigLoader) setDefaults() {
 		types.FrameworkISO27001,
 		types.FrameworkPCIDSS,
 	})
+
+	// AI defaults (Feature 002: AI Evidence Analysis)
+	cl.v.SetDefault("ai.enabled", false) // Disabled by default (opt-in)
+	cl.v.SetDefault("ai.provider", types.AIProviderOpenAI)
+	cl.v.SetDefault("ai.model", "gpt-4")
+	cl.v.SetDefault("ai.timeout", 60)    // 60 seconds
+	cl.v.SetDefault("ai.rate_limit", 10) // 10 requests per minute
+	cl.v.SetDefault("ai.cache_dir", "$HOME/.sdek/cache/ai")
+	cl.v.SetDefault("ai.openai_key", "")    // Must be set via env or config
+	cl.v.SetDefault("ai.anthropic_key", "") // Must be set via env or config
 }
 
 // configureConfigFile sets up the config file path
@@ -150,6 +160,16 @@ func (cl *ConfigLoader) WriteConfig(config *types.Config) error {
 	cl.v.Set("sources.enabled", config.Sources.Enabled)
 
 	cl.v.Set("frameworks.enabled", config.Frameworks.Enabled)
+
+	// AI configuration (Feature 002: AI Evidence Analysis)
+	cl.v.Set("ai.enabled", config.AI.Enabled)
+	cl.v.Set("ai.provider", config.AI.Provider)
+	cl.v.Set("ai.model", config.AI.Model)
+	cl.v.Set("ai.timeout", config.AI.Timeout)
+	cl.v.Set("ai.rate_limit", config.AI.RateLimit)
+	cl.v.Set("ai.cache_dir", config.AI.CacheDir)
+	cl.v.Set("ai.openai_key", config.AI.OpenAIKey)
+	cl.v.Set("ai.anthropic_key", config.AI.AnthropicKey)
 
 	// Ensure config directory exists
 	if err := cl.configureConfigFile(); err != nil {

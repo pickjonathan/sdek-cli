@@ -94,17 +94,17 @@
 
 ## Phase 3.8: Integration - Analyze Command
 
-- [ ] T026 Extend `internal/analyze/mapper.go` to integrate AI analysis (batch controls, call Engine, fallback orchestration, weighted confidence scoring)
-- [ ] T027 Extend `internal/analyze/mapper_test.go` with AI-enhanced mapping tests
-- [ ] T028 Extend `internal/analyze/confidence.go` to compute weighted average (70% AI + 30% heuristic)
-- [ ] T029 Extend `internal/analyze/confidence_test.go` with hybrid confidence tests
+- [x] T026 Extend `internal/analyze/mapper.go` to integrate AI analysis (batch controls, call Engine, fallback orchestration, weighted confidence scoring)
+- [x] T027 Extend `internal/analyze/mapper_test.go` with AI-enhanced mapping tests
+- [x] T028 Extend `internal/analyze/confidence.go` to compute weighted average (70% AI + 30% heuristic)
+- [x] T029 Extend `internal/analyze/confidence_test.go` with hybrid confidence tests
 
 ## Phase 3.9: Integration - Report Command
 
-- [ ] T030 Extend `internal/report/exporter.go` to include AI metadata fields in JSON output
-- [ ] T031 Extend `internal/report/exporter_test.go` with AI metadata in report tests
-- [ ] T032 Extend `internal/report/formatter.go` to format AI justifications and residual risk notes
-- [ ] T033 Extend `internal/report/formatter_test.go` with AI formatting tests
+- [x] T030 Extend `internal/report/exporter.go` to include AI metadata fields in JSON output
+- [x] T031 Extend `internal/report/exporter_test.go` with AI metadata in report tests
+- [x] T032 Extend `internal/report/formatter.go` to format AI justifications and residual risk notes
+- [x] T033 Extend `internal/report/formatter_test.go` with AI formatting tests
 
 ## Phase 3.10: Integration - Configuration & CLI
 

@@ -383,8 +383,6 @@ func createTestReport() *Report {
 
 // TestFormatCSV_WithAIMetadata verifies CSV export includes AI analysis fields
 func TestFormatCSV_WithAIMetadata(t *testing.T) {
-	t.Skip("Skipping until implementation complete")
-
 	formatter := NewFormatter()
 
 	report := &Report{
@@ -535,8 +533,6 @@ func TestFormatCSV_HeuristicOnly(t *testing.T) {
 
 // TestFormatMarkdown_WithAIAnalysis verifies Markdown includes AI analysis section
 func TestFormatMarkdown_WithAIAnalysis(t *testing.T) {
-	t.Skip("Skipping until implementation complete")
-
 	formatter := NewFormatter()
 
 	report := &Report{
@@ -626,7 +622,7 @@ func TestFormatMarkdown_WithAIAnalysis(t *testing.T) {
 	if !contains(md, "Residual Risk: No multi-region failover support yet") {
 		t.Error("Markdown should show residual risk")
 	}
-	if !contains(md, "Analysis Method: ai+heuristic") {
+	if !contains(md, "**Analysis Method:** ai+heuristic") {
 		t.Error("Markdown should show analysis method")
 	}
 }

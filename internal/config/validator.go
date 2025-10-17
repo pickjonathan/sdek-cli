@@ -40,6 +40,11 @@ func (v *Validator) Validate(config *types.Config) error {
 		return fmt.Errorf("invalid frameworks.enabled: %w", err)
 	}
 
+	// AI configuration validation (Feature 002: AI Evidence Analysis)
+	if err := v.ValidateAIConfig(&config.AI); err != nil {
+		return fmt.Errorf("invalid ai configuration: %w", err)
+	}
+
 	return nil
 }
 
@@ -161,4 +166,49 @@ func (v *Validator) ValidateExportFormat(format string) error {
 		}
 	}
 	return fmt.Errorf("invalid export format: %s (valid formats: %v)", format, validFormats)
+}
+
+// ValidateAIConfig validates AI configuration settings (Feature 002: AI Evidence Analysis)
+func (v *Validator) ValidateAIConfig(ai *types.AIConfig) error {
+	// If AI is not enabled, skip validation
+	if !ai.Enabled {
+		return nil
+	}
+
+	// Validate provider
+	validProvider := false
+	for _, provider := range types.ValidAIProviders {
+		if ai.Provider == provider {
+			validProvider = true
+			break
+		}
+	}
+	if !validProvider {
+		return fmt.Errorf("invalid ai.provider: %s (valid providers: %v)", ai.Provider, types.ValidAIProviders)
+	}
+
+	// Validate API key is set for the selected provider
+	if ai.Provider == types.AIProviderOpenAI && ai.OpenAIKey == "" {
+		return fmt.Errorf("ai.openai_key must be set when using OpenAI provider (set via SDEK_AI_OPENAI_KEY env var or config)")
+	}
+	if ai.Provider == types.AIProviderAnthropic && ai.AnthropicKey == "" {
+		return fmt.Errorf("ai.anthropic_key must be set when using Anthropic provider (set via SDEK_AI_ANTHROPIC_KEY env var or config)")
+	}
+
+	// Validate timeout (0-300 seconds)
+	if ai.Timeout < 0 || ai.Timeout > 300 {
+		return fmt.Errorf("ai.timeout must be between 0 and 300 seconds, got: %d", ai.Timeout)
+	}
+
+	// Validate rate limit (0-1000 requests per minute)
+	if ai.RateLimit < 0 || ai.RateLimit > 1000 {
+		return fmt.Errorf("ai.rate_limit must be between 0 and 1000 requests per minute, got: %d", ai.RateLimit)
+	}
+
+	// Validate cache directory
+	if ai.CacheDir == "" {
+		return fmt.Errorf("ai.cache_dir cannot be empty")
+	}
+
+	return nil
 }
