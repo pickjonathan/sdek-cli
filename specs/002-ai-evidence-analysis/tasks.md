@@ -108,9 +108,9 @@
 
 ## Phase 3.10: Integration - Configuration & CLI
 
-- [ ] T034 Extend `internal/config/loader.go` to load ai.* Viper keys (ai.provider, ai.enabled, ai.model, ai.max_tokens, ai.temperature, ai.timeout, ai.rate_limit, ai.openai_key, ai.anthropic_key)
-- [ ] T035 Extend `internal/config/validator.go` to validate AIConfig (provider values, token limits, temperature range, timeout range, API key presence)
-- [ ] T036 Extend `cmd/analyze.go` with --ai-provider flag and AI orchestration in PreRun (Health check) and PostRun (cache statistics)
+- [x] T034 Extend `internal/config/loader.go` to load ai.* Viper keys (ai.provider, ai.enabled, ai.model, ai.max_tokens, ai.temperature, ai.timeout, ai.rate_limit, ai.openai_key, ai.anthropic_key)
+- [x] T035 Extend `internal/config/validator.go` to validate AIConfig (provider values, token limits, temperature range, timeout range, API key presence)
+- [x] T036 Extend `cmd/analyze.go` with --ai-provider flag and AI orchestration in PreRun (Health check) and PostRun (cache statistics)
 
 ## Phase 3.11: Integration Tests (from quickstart.md scenarios)
 
