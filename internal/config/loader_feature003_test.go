@@ -47,8 +47,8 @@ func TestLoadAIConfigFeature003_Defaults(t *testing.T) {
 		t.Error("Expected autonomous.enabled false by default")
 	}
 
-	if config.AI.Autonomous.AutoApprove.Enabled {
-		t.Error("Expected autoApprove.enabled false by default")
+	if len(config.AI.Autonomous.AutoApprove) != 0 {
+		t.Errorf("Expected empty autoApprove map by default, got %d entries", len(config.AI.Autonomous.AutoApprove))
 	}
 
 	if !config.AI.Redaction.Enabled {
@@ -94,11 +94,9 @@ ai:
   autonomous:
     enabled: true
     autoApprove:
-      enabled: true
-      rules:
-        github: ["auth*", "*login*", "mfa*"]
-        aws: ["iam*", "security*"]
-        jira: ["INFOSEC-*"]
+      github: ["auth*", "*login*", "mfa*"]
+      aws: ["iam*", "security*"]
+      jira: ["INFOSEC-*"]
   
   redaction:
     enabled: true
@@ -147,30 +145,26 @@ ai:
 		t.Error("Expected autonomous.enabled true")
 	}
 
-	if !config.AI.Autonomous.AutoApprove.Enabled {
-		t.Error("Expected autoApprove.enabled true")
+	// Verify auto-approve rules (AutoApproveConfig is the map itself)
+	if len(config.AI.Autonomous.AutoApprove) != 3 {
+		t.Errorf("Expected 3 auto-approve rule sets, got %d", len(config.AI.Autonomous.AutoApprove))
 	}
 
-	// Verify auto-approve rules
-	if len(config.AI.Autonomous.AutoApprove.Rules) != 3 {
-		t.Errorf("Expected 3 auto-approve rule sets, got %d", len(config.AI.Autonomous.AutoApprove.Rules))
-	}
-
-	githubRules, ok := config.AI.Autonomous.AutoApprove.Rules["github"]
+	githubRules, ok := config.AI.Autonomous.AutoApprove["github"]
 	if !ok {
 		t.Error("Expected github rules to exist")
 	} else if len(githubRules) != 3 {
 		t.Errorf("Expected 3 github rules, got %d", len(githubRules))
 	}
 
-	awsRules, ok := config.AI.Autonomous.AutoApprove.Rules["aws"]
+	awsRules, ok := config.AI.Autonomous.AutoApprove["aws"]
 	if !ok {
 		t.Error("Expected aws rules to exist")
 	} else if len(awsRules) != 2 {
 		t.Errorf("Expected 2 aws rules, got %d", len(awsRules))
 	}
 
-	jiraRules, ok := config.AI.Autonomous.AutoApprove.Rules["jira"]
+	jiraRules, ok := config.AI.Autonomous.AutoApprove["jira"]
 	if !ok {
 		t.Error("Expected jira rules to exist")
 	} else if len(jiraRules) != 1 {
@@ -279,8 +273,7 @@ func TestWriteAIConfigFeature003(t *testing.T) {
 	config.AI.Budgets.MaxAPICalls = 3000
 	config.AI.Budgets.MaxTokens = 750000
 	config.AI.Autonomous.Enabled = true
-	config.AI.Autonomous.AutoApprove.Enabled = true
-	config.AI.Autonomous.AutoApprove.Rules = map[string][]string{
+	config.AI.Autonomous.AutoApprove = map[string][]string{
 		"github": {"auth*", "security*"},
 		"aws":    {"iam*"},
 	}
@@ -327,12 +320,8 @@ func TestWriteAIConfigFeature003(t *testing.T) {
 		t.Error("Expected autonomous.enabled true")
 	}
 
-	if !loadedConfig.AI.Autonomous.AutoApprove.Enabled {
-		t.Error("Expected autoApprove.enabled true")
-	}
-
-	if len(loadedConfig.AI.Autonomous.AutoApprove.Rules) != 2 {
-		t.Errorf("Expected 2 auto-approve rule sets, got %d", len(loadedConfig.AI.Autonomous.AutoApprove.Rules))
+	if len(loadedConfig.AI.Autonomous.AutoApprove) != 2 {
+		t.Errorf("Expected 2 auto-approve rule sets, got %d", len(loadedConfig.AI.Autonomous.AutoApprove))
 	}
 
 	if !loadedConfig.AI.Redaction.Enabled {

@@ -69,8 +69,7 @@ func TestValidateAIConfigFeature003(t *testing.T) {
 					Autonomous: AutonomousConfig{
 						Enabled: true,
 						AutoApprove: AutoApproveConfig{
-							Enabled: true,
-							Rules:   map[string][]string{"github": {"auth*"}},
+							"github": {"auth*"},
 						},
 					},
 					Redaction: RedactionConfig{

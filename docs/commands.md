@@ -446,6 +446,114 @@ sdek report --output test-report.json
 
 ---
 
+## AI Commands (Feature 003: Context Injection)
+
+The `sdek ai` command group provides AI-powered compliance analysis with policy context injection. These commands offer deeper, policy-grounded insights compared to the standard event-to-control mapping workflow.
+
+### sdek ai analyze
+
+Perform AI-enhanced compliance analysis by injecting policy context (framework excerpts, control descriptions) into the AI prompt.
+
+**Usage:**
+```bash
+sdek ai analyze --framework <framework> --section <section> \
+    --excerpts-file <path> --evidence-path <glob> [flags]
+```
+
+**Required Flags:**
+- `--framework string` - Framework name (e.g., SOC2, ISO27001, PCI-DSS)
+- `--section string` - Section ID (e.g., CC6.1, A.9.4.2)
+- `--excerpts-file string` - Path to policy excerpts JSON file
+- `--evidence-path strings` - Evidence file paths (supports globs, can be specified multiple times)
+
+**Optional Flags:**
+- `--no-cache` - Bypass cache and perform fresh analysis
+- `--output string` - Output file for finding results (default: `findings.json`)
+
+**Examples:**
+```bash
+# Basic context mode analysis for SOC2 CC6.1 (Access Controls)
+sdek ai analyze --framework SOC2 --section CC6.1 \
+    --excerpts-file ./policies/soc2_excerpts.json \
+    --evidence-path ./evidence/github_*.json \
+    --evidence-path ./evidence/jira_*.json
+
+# Analyze ISO 27001 section with single evidence source
+sdek ai analyze --framework ISO27001 --section A.9.4.2 \
+    --excerpts-file ./policies/iso_excerpts.json \
+    --evidence-path ./evidence/audit_logs.json
+
+# Bypass cache for fresh analysis (useful for testing policy changes)
+sdek ai analyze --framework SOC2 --section CC6.1 \
+    --excerpts-file ./policies/soc2_excerpts.json \
+    --evidence-path ./evidence/*.json \
+    --no-cache
+
+# Multiple evidence paths from different sources
+sdek ai analyze --framework PCI-DSS --section 8.2.4 \
+    --excerpts-file ./policies/pci_excerpts.json \
+    --evidence-path ./evidence/github/*.json \
+    --evidence-path ./evidence/jira/*.json \
+    --evidence-path ./evidence/slack/*.json
+
+# Specify custom output file for finding results
+sdek ai analyze --framework ISO27001 --section A.9.4.2 \
+    --excerpts-file ./policies/iso_excerpts.json \
+    --evidence-path ./evidence/*.json \
+    --output ./findings/iso_a942_finding.json
+```
+
+**Description:**
+
+Context injection mode provides policy-grounded AI analysis that goes beyond generic event-to-control mapping. Key features:
+
+- **Context Injection**: Policy excerpts and control descriptions guide AI analysis for more accurate, policy-aligned findings
+- **PII/Secret Redaction**: Automatic redaction of sensitive data before sending to AI provider
+- **Response Caching**: Reuses previous AI analysis for identical context/evidence combinations
+- **Confidence Scoring**: 0-100 scale with automatic low-confidence flagging
+- **Detailed Findings**: Structured findings with citations, justifications, and residual risk assessment
+
+**Differences from `sdek analyze --ai`:**
+
+| Feature | `sdek analyze --ai` | `sdek ai analyze` |
+|---------|---------------------|-------------------|
+| **Purpose** | Event-to-control mapping enhancement | Policy-grounded compliance analysis |
+| **Context** | Generic control descriptions | Detailed policy excerpts |
+| **Workflow** | Enhances existing mapping | Specialized analysis mode |
+| **Output** | Enhanced evidence items | Detailed findings with citations |
+| **Use Case** | Quick analysis across all controls | Deep dive on specific policy sections |
+
+**Policy Excerpts File Format:**
+
+The excerpts file should contain policy text relevant to the framework and section:
+
+```json
+[
+  {
+    "framework": "SOC2",
+    "version": "2017",
+    "section": "CC6.1",
+    "text": "The entity implements logical access security software...",
+    "related_sections": ["CC6.2", "CC6.3"]
+  }
+]
+```
+
+**Configuration:**
+
+Confidence thresholds and redaction patterns are configured in `config.yaml`:
+
+```yaml
+ai:
+  context_injection:
+    confidence_threshold: 70  # Flag findings below this score
+    auto_approve_rules:
+      - "github:repo:myorg/security-*"
+      - "jira:project:INFOSEC"
+```
+
+---
+
 ## State Management
 
 sdek stores all data in `$HOME/.sdek/state.json`. This file contains:

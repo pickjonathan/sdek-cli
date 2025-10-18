@@ -102,8 +102,7 @@ func (cl *ConfigLoader) setDefaults() {
 
 	// Feature 003: Autonomous mode defaults
 	cl.v.SetDefault("ai.autonomous.enabled", false)
-	cl.v.SetDefault("ai.autonomous.autoApprove.enabled", false)
-	cl.v.SetDefault("ai.autonomous.autoApprove.rules", map[string][]string{})
+	cl.v.SetDefault("ai.autonomous.autoApprove", map[string][]string{})
 
 	// Feature 003: Redaction defaults
 	cl.v.SetDefault("ai.redaction.enabled", true)

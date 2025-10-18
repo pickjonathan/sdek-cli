@@ -63,7 +63,7 @@ func (m PlanApprovalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.selectedIndex < len(m.plan.Items)-1 {
 				m.selectedIndex++
 			}
-		case "space":
+		case " ": // Space bar for toggle
 			// Toggle approval for selected item
 			if m.selectedIndex < len(m.plan.Items) {
 				item := &m.plan.Items[m.selectedIndex]

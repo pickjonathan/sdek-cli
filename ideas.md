@@ -24,3 +24,5 @@ At the second phase the AI given the complience ( SOC2 ) and the specific excerp
 ** the cli should support more the stdout architecture, if for example a backend should use its functionalies it should run in http mode and provide http responses.
 
 ** The cli tool should be MCP compatible exposing its usages to major AI providers.
+
+** Comperhansive examples folder with reprts, commands and informations.

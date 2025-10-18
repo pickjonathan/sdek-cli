@@ -289,11 +289,18 @@ See [AI-Enhanced Evidence Analysis](#ai-enhanced-evidence-analysis) below for co
 - 🔄 **Multi-source ingestion**: Git commits, Jira tickets, Slack messages, CI/CD pipelines, Documentation
 - 📊 **Framework mapping**: SOC 2, ISO 27001, PCI DSS with 124 controls
 - 🎯 **Evidence analysis**: Automatic evidence-to-control mapping with confidence scores
+- 🤖 **AI-Powered Analysis**: Context injection for policy-grounded compliance insights
+  - **Context Injection**: Ground AI analysis in exact framework control language
+  - **Privacy-First**: Mandatory PII/secret redaction before sending to AI providers
+  - **Intelligent Caching**: SHA256-based prompt/response caching for efficiency
+  - **Confidence Scoring**: 0-100 scale with automatic low-confidence flagging
 - ⚠️ **Risk scoring**: Severity-weighted risk calculation and finding generation
 - 📑 **Report export**: JSON compliance reports with role-based filtering
 - 🌐 **HTML dashboards**: Interactive web-based compliance visualization
 - 🖥️ **Interactive TUI**: Terminal UI for exploring compliance data
 - ⚙️ **Configuration management**: Flexible config via files, environment variables, and flags
+
+See the [AI Workflow Architecture](#ai-powered-compliance-analysis-workflow) and [Quickstart Guide](./specs/003-ai-context-injection/quickstart.md) for AI analysis examples.
 
 ## Installation
 

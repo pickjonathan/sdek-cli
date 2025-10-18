@@ -129,8 +129,8 @@ func TestDefaultConfig(t *testing.T) {
 	if config.AI.Autonomous.Enabled {
 		t.Error("expected autonomous mode to be disabled by default")
 	}
-	if config.AI.Autonomous.AutoApprove.Enabled {
-		t.Error("expected auto-approve to be disabled by default")
+	if len(config.AI.Autonomous.AutoApprove) != 0 {
+		t.Errorf("expected empty auto-approve map by default, got %d entries", len(config.AI.Autonomous.AutoApprove))
 	}
 	if !config.AI.Redaction.Enabled {
 		t.Error("expected redaction to be enabled by default")

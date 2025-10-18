@@ -37,23 +37,38 @@ Key features:
 This is different from 'sdek analyze --ai' which enhances the standard
 event-to-control mapping workflow. This command provides specialized
 context-grounded analysis for specific policy sections.`,
-	Example: `  # Analyze evidence for SOC2 CC6.1 (Access Controls)
+	Example: `  # Basic context mode analysis for SOC2 CC6.1 (Access Controls)
   sdek ai analyze --framework SOC2 --section CC6.1 \
       --excerpts-file ./policies/soc2_excerpts.json \
       --evidence-path ./evidence/github_*.json \
       --evidence-path ./evidence/jira_*.json
 
-  # Bypass cache for fresh analysis
+  # Analyze ISO 27001 section with single evidence source
+  sdek ai analyze --framework ISO27001 --section A.9.4.2 \
+      --excerpts-file ./policies/iso_excerpts.json \
+      --evidence-path ./evidence/audit_logs.json
+
+  # Bypass cache for fresh analysis (useful for testing policy changes)
   sdek ai analyze --framework SOC2 --section CC6.1 \
       --excerpts-file ./policies/soc2_excerpts.json \
       --evidence-path ./evidence/*.json \
       --no-cache
 
-  # Specify custom output file
+  # Multiple evidence paths from different sources
+  sdek ai analyze --framework PCI-DSS --section 8.2.4 \
+      --excerpts-file ./policies/pci_excerpts.json \
+      --evidence-path ./evidence/github/*.json \
+      --evidence-path ./evidence/jira/*.json \
+      --evidence-path ./evidence/slack/*.json
+
+  # Specify custom output file for finding results
   sdek ai analyze --framework ISO27001 --section A.9.4.2 \
       --excerpts-file ./policies/iso_excerpts.json \
       --evidence-path ./evidence/*.json \
-      --output ./findings/iso_a942_finding.json`,
+      --output ./findings/iso_a942_finding.json
+
+Note: Confidence thresholds are configured in config.yaml under ai.context_injection.confidence_threshold
+      PII/secrets are automatically redacted before sending to AI providers`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		// Validate required flags
 		framework, _ := cmd.Flags().GetString("framework")

@@ -12,6 +12,16 @@ import (
 func TestSeedCommand(t *testing.T) {
 	// Create temporary directory for test state
 	tmpDir := t.TempDir()
+
+	// Save and restore global state
+	oldHome := os.Getenv("HOME")
+	oldDataDir := dataDir
+	defer func() {
+		os.Setenv("HOME", oldHome)
+		dataDir = oldDataDir
+	}()
+
+	os.Setenv("HOME", tmpDir)
 	dataDir = tmpDir
 
 	tests := []struct {
@@ -21,15 +31,15 @@ func TestSeedCommand(t *testing.T) {
 		expectError    bool
 	}{
 		{
-			name:        "help flag",
-			args:        []string{"seed", "--help"},
-			expectError: false,
-		},
-		{
 			name:           "missing demo flag",
 			args:           []string{"seed"},
 			expectedErrMsg: "--demo flag is required",
 			expectError:    true,
+		},
+		{
+			name:        "help flag",
+			args:        []string{"seed", "--help"},
+			expectError: false,
 		},
 		{
 			name:        "demo flag provided",
@@ -54,6 +64,11 @@ func TestSeedCommand(t *testing.T) {
 			seedDemo = false
 			seedValue = 0
 			seedReset = false
+
+			// Reset Cobra flag state
+			seedCmd.Flags().Set("demo", "false")
+			seedCmd.Flags().Set("seed", "0")
+			seedCmd.Flags().Set("reset", "false")
 
 			// Reset root command
 			rootCmd.SetArgs(tt.args)
@@ -83,11 +98,15 @@ func TestSeedCommandGeneratesData(t *testing.T) {
 	// Create temporary directory for test state
 	tmpDir := t.TempDir()
 
-	// Set HOME to temp directory for test
+	// Save and restore global state
 	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	oldDataDir := dataDir
+	defer func() {
+		os.Setenv("HOME", oldHome)
+		dataDir = oldDataDir
+	}()
 
+	os.Setenv("HOME", tmpDir)
 	dataDir = filepath.Join(tmpDir, ".sdek")
 
 	// Run seed command
@@ -137,11 +156,15 @@ func TestSeedCommandDeterministicGeneration(t *testing.T) {
 	// Create temporary directory for test state
 	tmpDir := t.TempDir()
 
-	// Set HOME to temp directory for test
+	// Save and restore global state
 	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	oldDataDir := dataDir
+	defer func() {
+		os.Setenv("HOME", oldHome)
+		dataDir = oldDataDir
+	}()
 
+	os.Setenv("HOME", tmpDir)
 	dataDir = filepath.Join(tmpDir, ".sdek")
 
 	seed := int64(42)
@@ -175,10 +198,15 @@ func TestSeedCommandResetFlag(t *testing.T) {
 	// Create temporary directory for test state
 	tmpDir := t.TempDir()
 
-	// Set HOME to temp directory for test
+	// Save and restore global state
 	oldHome := os.Getenv("HOME")
+	oldDataDir := dataDir
+	defer func() {
+		os.Setenv("HOME", oldHome)
+		dataDir = oldDataDir
+	}()
+
 	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
 
 	dataDir = filepath.Join(tmpDir, ".sdek")
 
