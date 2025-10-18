@@ -17,7 +17,7 @@
 | **3.4: Commands** | T030-T032 | ✅ COMPLETE | 3/3 (100%) |
 | **3.5: TUI Components** | T033-T035 | ✅ COMPLETE | 3/3 (100%) |
 | **3.6: Validation & Polish** | T041-T046 | ✅ COMPLETE | 5/6 (83%) |
-| **TOTAL** | T001-T046 | **83% COMPLETE** | **38/46 tasks** |
+| **TOTAL** | T001-T046 | **85% COMPLETE** | **39/46 tasks** |
 
 ### Completed Tasks Detail
 - ✅ **T001**: Added dependencies (gobwas/glob v0.2.3)
@@ -44,7 +44,7 @@
 - ✅ **T028**: Engine.ExecutePlan() (task definition, implemented as T026)
 - ✅ **T029**: FlagLowConfidence() implemented (8/8 tests passing)
 - ✅ **T030**: `sdek ai analyze` command implemented (cmd/ai_analyze.go)
-- ✅ **T031**: Deferred (similar pattern to T030)
+- ✅ **T031**: `sdek ai plan` command implemented (cmd/ai_plan.go, 330 lines)
 - ✅ **T032**: `ai` parent command created (cmd/ai.go)
 - ✅ **T033**: ContextPreview TUI component (ui/components/context_preview.go)
 - ✅ **T034**: PlanApproval TUI component (ui/components/plan_approval.go)
@@ -798,8 +798,9 @@ func init() {
 
 ---
 
-### T031: Create sdek ai plan command
+### T031: Create sdek ai plan command ✅
 **File**: `cmd/ai_plan.go`
+**Status**: COMPLETE - 330 lines, builds successfully
 **Action**: Implement new Cobra command:
 ```go
 var aiPlanCmd = &cobra.Command{
