@@ -13,11 +13,11 @@
 | **3.2: Tests First (TDD)** | T005-T010 | ✅ COMPLETE | 6/6 (100%) |
 | **3.2: Integration Tests** | T011-T016 | ⏸️ DEFERRED | 0/6 (0%) |
 | **3.3: Core Implementation** | T017-T023 | ✅ COMPLETE | 7/7 (100%) |
-| **3.3: Engine Extensions** | T024-T026 | ✅ COMPLETE | 3/3 (100%) |
-| **3.4: Commands** | T027-T034 | ⏳ PENDING | 0/8 (0%) |
+| **3.3: Engine Extensions** | T024-T027 | ✅ COMPLETE | 4/4 (100%) |
+| **3.4: Commands** | T028-T034 | ⏳ PENDING | 0/7 (0%) |
 | **3.5: TUI Components** | T035-T040 | ⏳ PENDING | 0/6 (0%) |
 | **3.6: Validation & Polish** | T041-T046 | ⏳ PENDING | 0/6 (0%) |
-| **TOTAL** | T001-T046 | **43% COMPLETE** | **20/46 tasks** |
+| **TOTAL** | T001-T046 | **46% COMPLETE** | **21/46 tasks** |
 
 ### Completed Tasks Detail
 - ✅ **T001**: Added dependencies (gobwas/glob v0.2.3)
@@ -37,15 +37,17 @@
 - ✅ **T021**: Finding type extended with AI fields
 - ✅ **T022**: Redactor implemented (performance: ~10μs/event)
 - ✅ **T023**: AutoApproveMatcher implemented (performance: 51ns/match)
-- ✅ **T024**: Engine.Analyze() extended with context injection (14/14 tests passing)
-- ✅ **T025**: Engine.ProposePlan() implemented (14/14 tests passing, 5.4µs performance)
+- ✅ **T024**: Engine.Analyze() extended with context injection (14/14 tests passing, 44µs)
+- ✅ **T025**: Engine.ProposePlan() implemented (14/14 tests passing, 5.9µs performance)
 - ✅ **T026**: Engine.ExecutePlan() with MCP orchestration (13/13 tests passing, 70µs for 10 sources)
+- ✅ **T027**: Engine.ProposePlan() (task definition, implemented as T025)
 
 ### Current Focus
-- ✅ **T024**: Extend Engine.Analyze() with context injection - COMPLETE (14/14 tests passing)
-- ✅ **T025**: Implement Engine.ProposePlan() - COMPLETE (14/14 tests passing)
-- ✅ **T026**: Implement Engine.ExecutePlan() - COMPLETE (13/13 tests passing)
-- Next: T027 (Commands phase)
+- ✅ **T024**: Extend Engine.Analyze() with context injection - COMPLETE (14/14 tests passing, 44µs)
+- ✅ **T025**: Implement Engine.ProposePlan() - COMPLETE (14/14 tests passing, 5.9µs)
+- ✅ **T026**: Implement Engine.ExecutePlan() - COMPLETE (13/13 tests passing, 70µs)
+- ✅ **T027**: Engine.ProposePlan task definition (implemented above)
+- **Next**: T028-T034 (Commands & TUI phase)
 
 ### Test Results Summary
 - **Unit Tests**: 84/102 passing (82.4%)
