@@ -80,15 +80,34 @@ func (cl *ConfigLoader) setDefaults() {
 		types.FrameworkPCIDSS,
 	})
 
-	// AI defaults (Feature 002: AI Evidence Analysis)
+	// AI defaults (Feature 002 + 003: AI Evidence Analysis + Context Injection)
 	cl.v.SetDefault("ai.enabled", false) // Disabled by default (opt-in)
 	cl.v.SetDefault("ai.provider", types.AIProviderOpenAI)
 	cl.v.SetDefault("ai.model", "gpt-4")
-	cl.v.SetDefault("ai.timeout", 60)    // 60 seconds
-	cl.v.SetDefault("ai.rate_limit", 10) // 10 requests per minute
+	cl.v.SetDefault("ai.mode", types.AIModeDisabled) // Feature 003: disabled|context|autonomous
+	cl.v.SetDefault("ai.timeout", 60)                // 60 seconds
+	cl.v.SetDefault("ai.rate_limit", 10)             // 10 requests per minute
 	cl.v.SetDefault("ai.cache_dir", "$HOME/.sdek/cache/ai")
 	cl.v.SetDefault("ai.openai_key", "")    // Must be set via env or config
 	cl.v.SetDefault("ai.anthropic_key", "") // Must be set via env or config
+	cl.v.SetDefault("ai.apiKey", "")        // Feature 003: Unified API key field
+
+	// Feature 003: Concurrency defaults
+	cl.v.SetDefault("ai.concurrency.maxAnalyses", 25)
+
+	// Feature 003: Budget defaults
+	cl.v.SetDefault("ai.budgets.maxSources", 50)
+	cl.v.SetDefault("ai.budgets.maxAPICalls", 500)
+	cl.v.SetDefault("ai.budgets.maxTokens", 250000)
+
+	// Feature 003: Autonomous mode defaults
+	cl.v.SetDefault("ai.autonomous.enabled", false)
+	cl.v.SetDefault("ai.autonomous.autoApprove.enabled", false)
+	cl.v.SetDefault("ai.autonomous.autoApprove.rules", map[string][]string{})
+
+	// Feature 003: Redaction defaults
+	cl.v.SetDefault("ai.redaction.enabled", true)
+	cl.v.SetDefault("ai.redaction.denylist", []string{})
 }
 
 // configureConfigFile sets up the config file path
@@ -161,15 +180,34 @@ func (cl *ConfigLoader) WriteConfig(config *types.Config) error {
 
 	cl.v.Set("frameworks.enabled", config.Frameworks.Enabled)
 
-	// AI configuration (Feature 002: AI Evidence Analysis)
+	// AI configuration (Feature 002 + 003: AI Evidence Analysis + Context Injection)
 	cl.v.Set("ai.enabled", config.AI.Enabled)
 	cl.v.Set("ai.provider", config.AI.Provider)
 	cl.v.Set("ai.model", config.AI.Model)
+	cl.v.Set("ai.mode", config.AI.Mode)
 	cl.v.Set("ai.timeout", config.AI.Timeout)
 	cl.v.Set("ai.rate_limit", config.AI.RateLimit)
 	cl.v.Set("ai.cache_dir", config.AI.CacheDir)
 	cl.v.Set("ai.openai_key", config.AI.OpenAIKey)
 	cl.v.Set("ai.anthropic_key", config.AI.AnthropicKey)
+	cl.v.Set("ai.apiKey", config.AI.APIKey)
+
+	// Feature 003: Concurrency settings
+	cl.v.Set("ai.concurrency.maxAnalyses", config.AI.Concurrency.MaxAnalyses)
+
+	// Feature 003: Budget settings
+	cl.v.Set("ai.budgets.maxSources", config.AI.Budgets.MaxSources)
+	cl.v.Set("ai.budgets.maxAPICalls", config.AI.Budgets.MaxAPICalls)
+	cl.v.Set("ai.budgets.maxTokens", config.AI.Budgets.MaxTokens)
+
+	// Feature 003: Autonomous mode settings
+	cl.v.Set("ai.autonomous.enabled", config.AI.Autonomous.Enabled)
+	cl.v.Set("ai.autonomous.autoApprove.enabled", config.AI.Autonomous.AutoApprove.Enabled)
+	cl.v.Set("ai.autonomous.autoApprove.rules", config.AI.Autonomous.AutoApprove.Rules)
+
+	// Feature 003: Redaction settings
+	cl.v.Set("ai.redaction.enabled", config.AI.Redaction.Enabled)
+	cl.v.Set("ai.redaction.denylist", config.AI.Redaction.Denylist)
 
 	// Ensure config directory exists
 	if err := cl.configureConfigFile(); err != nil {

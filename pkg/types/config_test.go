@@ -109,6 +109,35 @@ func TestDefaultConfig(t *testing.T) {
 	if config.AI.RateLimit != 10 {
 		t.Errorf("expected default AI rate limit 10, got %d", config.AI.RateLimit)
 	}
+
+	// Test Feature 003 AI config defaults
+	if config.AI.Mode != AIModeDisabled {
+		t.Errorf("expected default AI mode %s, got %s", AIModeDisabled, config.AI.Mode)
+	}
+	if config.AI.Concurrency.MaxAnalyses != 25 {
+		t.Errorf("expected default concurrency.maxAnalyses 25, got %d", config.AI.Concurrency.MaxAnalyses)
+	}
+	if config.AI.Budgets.MaxSources != 50 {
+		t.Errorf("expected default budgets.maxSources 50, got %d", config.AI.Budgets.MaxSources)
+	}
+	if config.AI.Budgets.MaxAPICalls != 500 {
+		t.Errorf("expected default budgets.maxAPICalls 500, got %d", config.AI.Budgets.MaxAPICalls)
+	}
+	if config.AI.Budgets.MaxTokens != 250000 {
+		t.Errorf("expected default budgets.maxTokens 250000, got %d", config.AI.Budgets.MaxTokens)
+	}
+	if config.AI.Autonomous.Enabled {
+		t.Error("expected autonomous mode to be disabled by default")
+	}
+	if config.AI.Autonomous.AutoApprove.Enabled {
+		t.Error("expected auto-approve to be disabled by default")
+	}
+	if !config.AI.Redaction.Enabled {
+		t.Error("expected redaction to be enabled by default")
+	}
+	if len(config.AI.Redaction.Denylist) != 0 {
+		t.Errorf("expected empty denylist by default, got %d items", len(config.AI.Redaction.Denylist))
+	}
 }
 
 func TestValidateAIConfig(t *testing.T) {

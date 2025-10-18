@@ -126,6 +126,8 @@ sdek analyze [flags]
 **Flags:**
 - `--framework string` - Analyze specific framework (default: all)
 - `--confidence string` - Minimum confidence level: low, medium, high (default: low)
+- `--ai-provider string` - AI provider for enhanced analysis: openai, anthropic, none (default: from config)
+- `--no-ai` - Disable AI analysis (use heuristics only)
 
 **Examples:**
 ```bash
@@ -137,21 +139,49 @@ sdek analyze --framework soc2
 
 # Only map high-confidence evidence
 sdek analyze --confidence high
+
+# Use AI-enhanced analysis with OpenAI
+sdek analyze --ai-provider openai
+
+# Use Anthropic for this analysis
+sdek analyze --ai-provider anthropic
+
+# Disable AI for CI/CD environments (heuristics only)
+sdek analyze --no-ai
 ```
 
 **Description:**
 Performs compliance evidence mapping:
 1. Maps events to framework controls using keyword matching
-2. Calculates confidence scores for each mapping
-3. Generates compliance findings based on evidence gaps
-4. Updates risk status for each control (green/yellow/red)
-5. Calculates framework compliance percentages
+2. (Optional) Enhances mapping with AI natural language understanding
+3. Calculates hybrid confidence scores (70% AI + 30% heuristic when AI enabled)
+4. Generates compliance findings based on evidence gaps
+5. Updates risk status for each control (green/yellow/red)
+6. Calculates framework compliance percentages
 
 **Analysis Process:**
-- **Keyword Matching**: Events matched to controls via predefined keywords
-- **Confidence Scoring**: Based on keyword relevance and event metadata
+- **Keyword Matching**: Events matched to controls via predefined keywords (heuristic confidence)
+- **AI Enhancement** (when enabled): Natural language analysis with justifications and residual risk notes
+- **Confidence Scoring**: 
+  - Heuristic-only: Based on keyword relevance and event metadata
+  - AI-enhanced: Weighted average (70% AI + 30% heuristic)
 - **Risk Calculation**: Formula: 3 High = 1 Critical, 6 Medium = 1 Critical, 12 Low = 1 Critical
 - **Compliance**: Percentage of controls with green risk status
+
+**AI-Enhanced Analysis:**
+
+When AI is enabled (via config or `--ai-provider` flag), evidence mapping is enhanced with:
+- **Natural language understanding**: AI interprets event context beyond keyword matching
+- **Structured justifications**: Explains why each event supports the control
+- **Confidence scores**: 0-100 scale based on semantic relevance
+- **Residual risk notes**: Identifies gaps or concerns not addressed by evidence
+- **Privacy protection**: Automatic PII/secret redaction before AI transmission
+- **Intelligent caching**: Reuses previous AI analysis for unchanged events
+
+AI providers:
+- **OpenAI**: GPT-4 Turbo (`gpt-4-turbo-preview`) - General-purpose, fast
+- **Anthropic**: Claude 3 Opus (`claude-3-opus-20240229`) - Long context, detailed
+- **none**: Disable AI, use heuristics only (default, reproducible)
 
 ---
 

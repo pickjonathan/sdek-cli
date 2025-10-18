@@ -8,3 +8,5 @@ example, we wat to analyse SOC2 so first we inject the AI with the SOC2 context 
 At the second phase the AI given the complience ( SOC2 ) and the specific excerpt should alone conclude the data it needs to collect, get it using MCPS ( githu, AWS etc ) then perform the analysis.
 
 Evidence collection using AI web browser to login for example to AWS then return a print screen of the evidance.
+
+VS code extention to help configure the cli, run reports and view them, also connect MCP's.

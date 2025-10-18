@@ -5,6 +5,7 @@ Auto-generated from all feature plans. Last updated: 2025-10-11
 ## Active Technologies
 - Go 1.23+ (latest stable) (001-create-sdek)
 - Go 1.23+ (latest stable, per existing project) (002-ai-evidence-analysis)
+- Go 1.23+ (per existing project standard) (003-ai-context-injection)
 
 ## Project Structure
 ```
@@ -19,6 +20,7 @@ tests/
 Go 1.23+ (latest stable): Follow standard conventions
 
 ## Recent Changes
+- 003-ai-context-injection: Added Go 1.23+ (per existing project standard)
 - 002-ai-evidence-analysis: Added Go 1.23+ (latest stable, per existing project)
 - 001-create-sdek: Added Go 1.23+ (latest stable)
 

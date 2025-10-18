@@ -114,25 +114,25 @@
 
 ## Phase 3.11: Integration Tests (from quickstart.md scenarios)
 
-- [ ] T037 [P] Create `tests/integration/analyze_ai_test.go` with scenario 1: Enable AI with OpenAI (success path)
-- [ ] T038 [P] Create test scenario 2: AI fallback on provider error in `tests/integration/analyze_ai_test.go`
-- [ ] T039 [P] Create test scenario 3: Cache reuse on repeated analysis in `tests/integration/analyze_ai_test.go`
-- [ ] T040 [P] Create test scenario 4: Cache invalidation on event change in `tests/integration/analyze_ai_test.go`
-- [ ] T041 [P] Create test scenario 5: Switch AI providers mid-stream in `tests/integration/analyze_ai_test.go`
-- [ ] T042 [P] Create test scenario 6: Disable AI for CI/CD in `tests/integration/analyze_ai_test.go`
-- [ ] T043 [P] Create test scenario 7: PII redaction before AI transmission in `tests/integration/analyze_ai_test.go`
-- [ ] T044 [P] Create test scenario 8: AI timeout and fallback in `tests/integration/analyze_ai_test.go`
+- [x] T037 [P] Create `tests/integration/analyze_ai_test.go` with scenario 1: Enable AI with OpenAI (success path)
+- [x] T038 [P] Create test scenario 2: AI fallback on provider error in `tests/integration/analyze_ai_test.go`
+- [x] T039 [P] Create test scenario 3: Cache reuse on repeated analysis in `tests/integration/analyze_ai_test.go`
+- [x] T040 [P] Create test scenario 4: Cache invalidation on event change in `tests/integration/analyze_ai_test.go`
+- [x] T041 [P] Create test scenario 5: Switch AI providers mid-stream in `tests/integration/analyze_ai_test.go`
+- [x] T042 [P] Create test scenario 6: Disable AI for CI/CD in `tests/integration/analyze_ai_test.go`
+- [x] T043 [P] Create test scenario 7: PII redaction before AI transmission in `tests/integration/analyze_ai_test.go`
+- [x] T044 [P] Create test scenario 8: AI timeout and fallback in `tests/integration/analyze_ai_test.go`
 
 ## Phase 3.12: Test Fixtures & Documentation
 
-- [ ] T045 [P] Create `testdata/ai/fixtures/openai_response_soc2_cc1.1.json` (golden file for OpenAI)
-- [ ] T046 [P] Create `testdata/ai/fixtures/anthropic_response_iso_a5.1.json` (golden file for Anthropic)
-- [ ] T047 [P] Create `testdata/ai/policies/soc2_excerpts.json` (policy excerpt fixtures)
-- [ ] T048 [P] Create `testdata/ai/policies/iso27001_excerpts.json` (policy excerpt fixtures)
-- [ ] T049 [P] Create `testdata/ai/policies/pci_excerpts.json` (policy excerpt fixtures)
-- [ ] T050 [P] Create `testdata/events_with_pii.json` (events for redaction testing)
-- [ ] T051 Update `README.md` with AI configuration examples (enabling AI, switching providers, disabling for CI)
-- [ ] T052 Update `docs/commands.md` with --ai-provider flag documentation
+- [x] T045 [P] Create `testdata/ai/fixtures/openai_response_soc2_cc1.1.json` (golden file for OpenAI)
+- [x] T046 [P] Create `testdata/ai/fixtures/anthropic_response_iso_a5.1.json` (golden file for Anthropic)
+- [x] T047 [P] Create `testdata/ai/policies/soc2_excerpts.json` (policy excerpt fixtures)
+- [x] T048 [P] Create `testdata/ai/policies/iso27001_excerpts.json` (policy excerpt fixtures)
+- [x] T049 [P] Create `testdata/ai/policies/pci_excerpts.json` (policy excerpt fixtures)
+- [x] T050 [P] Create `testdata/events_with_pii.json` (events for redaction testing)
+- [x] T051 Update `README.md` with AI configuration examples (enabling AI, switching providers, disabling for CI)
+- [x] T052 Update `docs/commands.md` with --ai-provider flag documentation
 
 ---
 

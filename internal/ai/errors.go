@@ -9,6 +9,12 @@ var (
 
 	// ErrZeroEvents indicates no events were provided for analysis
 	ErrZeroEvents = errors.New("ai: no events to analyze")
+
+	// ErrNoPlanItems indicates the AI provider returned no plan items
+	ErrNoPlanItems = errors.New("ai: provider returned no plan items")
+
+	// ErrBudgetExceeded indicates the proposed plan exceeds configured budgets
+	ErrBudgetExceeded = errors.New("ai: proposed plan exceeds budget limits")
 )
 
 // Provider errors (retryable with backoff)

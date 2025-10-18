@@ -30,16 +30,51 @@ type SourcesConfig struct {
 	Enabled []string `json:"enabled" mapstructure:"enabled"`
 }
 
-// AIConfig contains AI analysis settings (Feature 002: AI Evidence Analysis)
+// AIConfig contains AI analysis settings (Feature 002 + 003: AI Evidence Analysis + Context Injection)
 type AIConfig struct {
-	Enabled      bool   `json:"enabled" mapstructure:"enabled"`
-	Provider     string `json:"provider" mapstructure:"provider"`
-	Model        string `json:"model" mapstructure:"model"`
-	OpenAIKey    string `json:"openai_key" mapstructure:"openai_key"`
-	AnthropicKey string `json:"anthropic_key" mapstructure:"anthropic_key"`
-	Timeout      int    `json:"timeout" mapstructure:"timeout"`       // seconds
-	RateLimit    int    `json:"rate_limit" mapstructure:"rate_limit"` // requests per minute
-	CacheDir     string `json:"cache_dir" mapstructure:"cache_dir"`   // cache directory path
+	Enabled      bool              `json:"enabled" mapstructure:"enabled"`
+	Provider     string            `json:"provider" mapstructure:"provider"` // anthropic|openai
+	Model        string            `json:"model" mapstructure:"model"`
+	OpenAIKey    string            `json:"openai_key" mapstructure:"openai_key"`
+	AnthropicKey string            `json:"anthropic_key" mapstructure:"anthropic_key"`
+	APIKey       string            `json:"apiKey" mapstructure:"apiKey"`           // Feature 003: Unified API key field
+	Mode         string            `json:"mode" mapstructure:"mode"`               // Feature 003: disabled|context|autonomous
+	Timeout      int               `json:"timeout" mapstructure:"timeout"`         // seconds
+	RateLimit    int               `json:"rate_limit" mapstructure:"rate_limit"`   // requests per minute
+	CacheDir     string            `json:"cache_dir" mapstructure:"cache_dir"`     // cache directory path
+	NoCache      bool              `json:"no_cache" mapstructure:"no_cache"`       // Feature 003: Disable caching
+	Concurrency  ConcurrencyLimits `json:"concurrency" mapstructure:"concurrency"` // Feature 003: Concurrency limits
+	Budgets      BudgetLimits      `json:"budgets" mapstructure:"budgets"`         // Feature 003: Budget limits
+	Autonomous   AutonomousConfig  `json:"autonomous" mapstructure:"autonomous"`   // Feature 003: Autonomous mode config
+	Redaction    RedactionConfig   `json:"redaction" mapstructure:"redaction"`     // Feature 003: Redaction settings
+}
+
+// ConcurrencyLimits defines concurrency constraints for AI operations (Feature 003)
+type ConcurrencyLimits struct {
+	MaxAnalyses int `json:"maxAnalyses" mapstructure:"maxAnalyses"` // Default: 25
+}
+
+// BudgetLimits defines resource constraints for AI operations (Feature 003)
+type BudgetLimits struct {
+	MaxSources  int `json:"maxSources" mapstructure:"maxSources"`   // Default: 50
+	MaxAPICalls int `json:"maxAPICalls" mapstructure:"maxAPICalls"` // Default: 500
+	MaxTokens   int `json:"maxTokens" mapstructure:"maxTokens"`     // Default: 250000
+}
+
+// AutonomousConfig defines autonomous evidence collection settings (Feature 003)
+type AutonomousConfig struct {
+	Enabled     bool              `json:"enabled" mapstructure:"enabled"`
+	AutoApprove AutoApproveConfig `json:"autoApprove" mapstructure:"autoApprove"`
+}
+
+// AutoApproveConfig defines auto-approval policy for evidence plans (Feature 003)
+// It's a map of source name to list of glob patterns
+type AutoApproveConfig map[string][]string // source -> patterns
+
+// RedactionConfig defines PII/secret redaction settings (Feature 003)
+type RedactionConfig struct {
+	Enabled  bool     `json:"enabled" mapstructure:"enabled"`   // Default: true
+	Denylist []string `json:"denylist" mapstructure:"denylist"` // Exact match strings
 }
 
 // AI provider constants
@@ -50,6 +85,16 @@ const (
 
 // ValidAIProviders is the list of valid AI providers
 var ValidAIProviders = []string{AIProviderOpenAI, AIProviderAnthropic}
+
+// AI mode constants (Feature 003)
+const (
+	AIModeDisabled   = "disabled"
+	AIModeContext    = "context"
+	AIModeAutonomous = "autonomous"
+)
+
+// ValidAIModes is the list of valid AI modes
+var ValidAIModes = []string{AIModeDisabled, AIModeContext, AIModeAutonomous}
 
 // DefaultConfig returns a Config with default values
 func DefaultConfig() *Config {
@@ -72,9 +117,26 @@ func DefaultConfig() *Config {
 			Enabled:   false, // Disabled by default (opt-in)
 			Provider:  AIProviderOpenAI,
 			Model:     "gpt-4", // Default OpenAI model
-			Timeout:   60,      // 60 seconds
-			RateLimit: 10,      // 10 requests per minute
+			Mode:      AIModeDisabled,
+			Timeout:   60, // 60 seconds
+			RateLimit: 10, // 10 requests per minute
 			CacheDir:  "$HOME/.sdek/cache/ai",
+			Concurrency: ConcurrencyLimits{
+				MaxAnalyses: 25,
+			},
+			Budgets: BudgetLimits{
+				MaxSources:  50,
+				MaxAPICalls: 500,
+				MaxTokens:   250000,
+			},
+			Autonomous: AutonomousConfig{
+				Enabled:     false,
+				AutoApprove: make(AutoApproveConfig),
+			},
+			Redaction: RedactionConfig{
+				Enabled:  true,
+				Denylist: []string{},
+			},
 		},
 	}
 }
@@ -179,6 +241,18 @@ func ValidateConfig(c *Config) error {
 			return fmt.Errorf("invalid AI provider: %s, must be one of %v", c.AI.Provider, ValidAIProviders)
 		}
 
+		// Validate mode (Feature 003)
+		valid = false
+		for _, mode := range ValidAIModes {
+			if c.AI.Mode == mode {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return fmt.Errorf("invalid AI mode: %s, must be one of %v", c.AI.Mode, ValidAIModes)
+		}
+
 		// Validate model is not empty
 		if c.AI.Model == "" {
 			return fmt.Errorf("AI model cannot be empty when AI is enabled")
@@ -195,11 +269,27 @@ func ValidateConfig(c *Config) error {
 		}
 
 		// Validate API keys
-		if c.AI.Provider == AIProviderOpenAI && c.AI.OpenAIKey == "" {
+		if c.AI.Provider == AIProviderOpenAI && c.AI.OpenAIKey == "" && c.AI.APIKey == "" {
 			return fmt.Errorf("OpenAI API key required when provider is openai")
 		}
-		if c.AI.Provider == AIProviderAnthropic && c.AI.AnthropicKey == "" {
+		if c.AI.Provider == AIProviderAnthropic && c.AI.AnthropicKey == "" && c.AI.APIKey == "" {
 			return fmt.Errorf("Anthropic API key required when provider is anthropic")
+		}
+
+		// Validate concurrency limits (Feature 003)
+		if c.AI.Concurrency.MaxAnalyses <= 0 {
+			return fmt.Errorf("AI concurrency.maxAnalyses must be positive, got %d", c.AI.Concurrency.MaxAnalyses)
+		}
+
+		// Validate budget limits (Feature 003)
+		if c.AI.Budgets.MaxSources <= 0 {
+			return fmt.Errorf("AI budgets.maxSources must be positive, got %d", c.AI.Budgets.MaxSources)
+		}
+		if c.AI.Budgets.MaxAPICalls <= 0 {
+			return fmt.Errorf("AI budgets.maxAPICalls must be positive, got %d", c.AI.Budgets.MaxAPICalls)
+		}
+		if c.AI.Budgets.MaxTokens <= 0 {
+			return fmt.Errorf("AI budgets.maxTokens must be positive, got %d", c.AI.Budgets.MaxTokens)
 		}
 	}
 
