@@ -465,3 +465,107 @@ func TestHybridConfidence_Integration(t *testing.T) {
 		t.Error("Hybrid score should be higher than heuristic when AI has high confidence")
 	}
 }
+
+// TestFlagLowConfidence verifies low confidence flagging (Feature 003)
+func TestFlagLowConfidence(t *testing.T) {
+	tests := []struct {
+		name         string
+		finding      *types.Finding
+		threshold    float64
+		expectReview bool
+		description  string
+	}{
+		{
+			name: "Below threshold - should flag for review",
+			finding: &types.Finding{
+				ConfidenceScore: 0.5,
+				ReviewRequired:  false,
+			},
+			threshold:    0.6,
+			expectReview: true,
+			description:  "Confidence 0.5 < threshold 0.6 should flag",
+		},
+		{
+			name: "At threshold - should NOT flag",
+			finding: &types.Finding{
+				ConfidenceScore: 0.6,
+				ReviewRequired:  false,
+			},
+			threshold:    0.6,
+			expectReview: false,
+			description:  "Confidence 0.6 == threshold 0.6 should NOT flag",
+		},
+		{
+			name: "Above threshold - should NOT flag",
+			finding: &types.Finding{
+				ConfidenceScore: 0.85,
+				ReviewRequired:  false,
+			},
+			threshold:    0.6,
+			expectReview: false,
+			description:  "Confidence 0.85 > threshold 0.6 should NOT flag",
+		},
+		{
+			name: "Very low confidence - should flag",
+			finding: &types.Finding{
+				ConfidenceScore: 0.2,
+				ReviewRequired:  false,
+			},
+			threshold:    0.6,
+			expectReview: true,
+			description:  "Very low confidence should flag",
+		},
+		{
+			name: "High confidence with strict threshold",
+			finding: &types.Finding{
+				ConfidenceScore: 0.8,
+				ReviewRequired:  false,
+			},
+			threshold:    0.9,
+			expectReview: true,
+			description:  "Even 0.8 should flag with 0.9 threshold",
+		},
+		{
+			name: "Already flagged - remains flagged",
+			finding: &types.Finding{
+				ConfidenceScore: 0.85,
+				ReviewRequired:  true,
+			},
+			threshold:    0.6,
+			expectReview: true,
+			description:  "Pre-existing flag should remain",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			FlagLowConfidence(tt.finding, tt.threshold)
+
+			if tt.finding.ReviewRequired != tt.expectReview {
+				t.Errorf("%s: ReviewRequired = %v, expected %v",
+					tt.description, tt.finding.ReviewRequired, tt.expectReview)
+			}
+		})
+	}
+}
+
+// TestFlagLowConfidence_NilFinding verifies nil safety
+func TestFlagLowConfidence_NilFinding(t *testing.T) {
+	// Should not panic with nil finding
+	FlagLowConfidence(nil, 0.6)
+}
+
+// TestFlagLowConfidence_DefaultThreshold verifies default 0.6 threshold
+func TestFlagLowConfidence_DefaultThreshold(t *testing.T) {
+	finding := &types.Finding{
+		ConfidenceScore: 0.59,
+		ReviewRequired:  false,
+	}
+
+	// Use default threshold from spec (0.6)
+	FlagLowConfidence(finding, 0.6)
+
+	if !finding.ReviewRequired {
+		t.Error("Finding with 0.59 confidence should be flagged with 0.6 threshold")
+	}
+}

@@ -121,3 +121,15 @@ func (c *ConfidenceCalculator) ValidateConfidenceScore(score int) int {
 	}
 	return score
 }
+
+// FlagLowConfidence marks a finding for review if confidence is below threshold
+// Default threshold is 0.6 (60%) as per Feature 003 spec
+func FlagLowConfidence(finding *types.Finding, threshold float64) {
+	if finding == nil {
+		return
+	}
+
+	if finding.ConfidenceScore < threshold {
+		finding.ReviewRequired = true
+	}
+}
