@@ -1,0 +1,22 @@
+🔍 AI Context Preview
+                     
+
+Framework: SOC2 2017
+Section:   CC6.1
+Evidence:  42 events
+
+Policy Excerpt:
+╭────────────────────────────────────────────────────────────────────────────╮
+│                                                                            │
+│ The entity restricts logical and physical access to systems and programs   │
+│ to authorized users. The entity implements controls to prevent or detect   │
+│ and act upon the introduction of unauthorized or malicious software to     │
+│ meet the entity's objectives.                                              │
+│                                                                            │
+╰────────────────────────────────────────────────────────────────────────────╯
+
+Related Controls: CC6.1, CC6.2, CC6.3
+
+This context will be sent to the AI provider for analysis.
+
+Press Enter or Y to proceed  |  Press N or Q to cancel

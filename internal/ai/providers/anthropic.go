@@ -13,11 +13,22 @@ import (
 	"github.com/pickjonathan/sdek-cli/pkg/types"
 )
 
-// AnthropicEngine implements ai.Engine using Anthropic's API
+// Register Anthropic provider factory on package initialization
+func init() {
+	ai.RegisterProviderFactory("anthropic", func(config ai.AIConfig) (ai.Provider, error) {
+		return NewAnthropicEngine(config)
+	})
+}
+
+// AnthropicEngine implements ai.Engine and ai.Provider using Anthropic's API
 type AnthropicEngine struct {
 	client  *anthropic.Client
 	config  ai.AIConfig
 	limiter *RateLimiter
+
+	// Testing/debugging fields
+	callCount  int
+	lastPrompt string
 }
 
 // NewAnthropicEngine creates a new Anthropic engine
@@ -574,4 +585,85 @@ func isAnthropicServerError(err error) bool {
 	}
 	errStr := err.Error()
 	return errStr == "500" || errStr == "502" || errStr == "503" || errStr == "api_error" || errStr == "internal_server_error"
+}
+
+// ============================================================================
+// Provider Interface Implementation (for autonomous mode - Feature 003)
+// ============================================================================
+
+// AnalyzeWithContext implements ai.Provider.AnalyzeWithContext
+// This is a simpler interface for autonomous mode that takes a pre-formatted prompt
+// and returns the raw AI response as a string
+func (e *AnthropicEngine) AnalyzeWithContext(ctx context.Context, prompt string) (string, error) {
+	// Validate prompt
+	if prompt == "" {
+		return "", fmt.Errorf("prompt cannot be empty")
+	}
+
+	// Wait for rate limiter
+	if err := e.limiter.Wait(ctx); err != nil {
+		return "", err
+	}
+
+	// Set timeout from config if not already set
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(e.config.Timeout)*time.Second)
+		defer cancel()
+	}
+
+	// Track for testing
+	e.callCount++
+	e.lastPrompt = prompt
+
+	// Make API call with retry
+	var resp *anthropic.Message
+	operation := func() error {
+		var err error
+		resp, err = e.client.Messages.New(ctx, anthropic.MessageNewParams{
+			Model:       anthropic.Model(e.config.Model),
+			MaxTokens:   int64(e.config.MaxTokens),
+			Temperature: anthropic.Float(float64(e.config.Temperature)),
+			System: []anthropic.TextBlockParam{
+				{
+					Text: "You are an expert compliance analyst. Analyze evidence and provide detailed, policy-grounded findings.",
+				},
+			},
+			Messages: []anthropic.MessageParam{
+				anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
+			},
+		})
+		return err
+	}
+
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = time.Duration(e.config.Timeout) * time.Second
+
+	err := backoff.Retry(operation, bo)
+	if err != nil {
+		return "", e.handleError(err)
+	}
+
+	if len(resp.Content) == 0 {
+		return "", fmt.Errorf("no content in Anthropic response")
+	}
+
+	// Extract text from the first content block
+	if block := resp.Content[0].AsAny(); block != nil {
+		if textBlock, ok := block.(anthropic.TextBlock); ok {
+			return textBlock.Text, nil
+		}
+	}
+
+	return "", fmt.Errorf("unexpected content type in Anthropic response")
+}
+
+// GetCallCount implements ai.Provider.GetCallCount
+func (e *AnthropicEngine) GetCallCount() int {
+	return e.callCount
+}
+
+// GetLastPrompt implements ai.Provider.GetLastPrompt
+func (e *AnthropicEngine) GetLastPrompt() string {
+	return e.lastPrompt
 }

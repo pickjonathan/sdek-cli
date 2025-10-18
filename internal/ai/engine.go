@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pickjonathan/sdek-cli/internal/ai/connectors"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
 )
 
@@ -109,6 +110,129 @@ func NewEngineWithConnector(cfg *types.Config, provider Provider, connector MCPC
 		autoApproveMatcher: autoApproveMatcher,
 		connector:          connector,
 	}
+}
+
+// NewEngineFromConfig creates a new Engine instance with connectors built from configuration
+// This is the recommended factory for production use with autonomous mode.
+// It automatically initializes available connectors based on cfg.AI.Connectors settings.
+func NewEngineFromConfig(cfg *types.Config) (Engine, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
+	// Create AI provider
+	provider, err := createProvider(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AI provider: %w", err)
+	}
+
+	// Build connector registry from configuration
+	registry, err := buildConnectorRegistry(cfg.AI.Connectors)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build connector registry: %w", err)
+	}
+
+	// Create engine with registry
+	return NewEngineWithConnector(cfg, provider, registry), nil
+}
+
+// createProvider creates an AI provider based on configuration
+// Note: Providers must be imported elsewhere (e.g., in cmd/) to trigger factory registration
+func createProvider(cfg *types.Config) (Provider, error) {
+	// Convert types.Config to ai.AIConfig with defaults
+	aiConfig := AIConfig{
+		Provider:     cfg.AI.Provider,
+		Enabled:      cfg.AI.Enabled,
+		Model:        cfg.AI.Model,
+		MaxTokens:    4096, // Default value
+		Temperature:  0.3,  // Default value
+		Timeout:      cfg.AI.Timeout,
+		RateLimit:    cfg.AI.RateLimit,
+		OpenAIKey:    cfg.AI.OpenAIKey,
+		AnthropicKey: cfg.AI.AnthropicKey,
+	}
+
+	// Override defaults if needed
+	if cfg.AI.Timeout == 0 {
+		aiConfig.Timeout = 60 // Default 60 seconds
+	}
+	if cfg.AI.RateLimit == 0 {
+		aiConfig.RateLimit = 10 // Default 10 requests/min
+	}
+
+	// Get API key from provider-specific fields or unified APIKey field
+	var apiKey string
+	switch cfg.AI.Provider {
+	case types.AIProviderOpenAI:
+		apiKey = cfg.AI.OpenAIKey
+		if apiKey == "" {
+			apiKey = cfg.AI.APIKey
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("OpenAI API key not configured")
+		}
+		aiConfig.OpenAIKey = apiKey
+
+	case types.AIProviderAnthropic:
+		apiKey = cfg.AI.AnthropicKey
+		if apiKey == "" {
+			apiKey = cfg.AI.APIKey
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("Anthropic API key not configured")
+		}
+		aiConfig.AnthropicKey = apiKey
+
+	default:
+		return nil, fmt.Errorf("unsupported AI provider: %s", cfg.AI.Provider)
+	}
+
+	// Create provider using registered factory
+	provider, err := CreateProviderFromRegistry(cfg.AI.Provider, aiConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create provider: %w", err)
+	}
+
+	return provider, nil
+} // buildConnectorRegistry builds a connector registry from configuration
+func buildConnectorRegistry(configs map[string]types.ConnectorConfig) (MCPConnector, error) {
+	if len(configs) == 0 {
+		// No connectors configured - return nil (ExecutePlan will fail gracefully)
+		return nil, nil
+	}
+
+	builder := connectors.NewRegistryBuilder()
+
+	// Register factories for available connectors
+	builder.RegisterFactory("github", connectors.NewGitHubConnector)
+	// TODO: Add more when implemented
+	// builder.RegisterFactory("jira", connectors.NewJiraConnector)
+	// builder.RegisterFactory("aws", connectors.NewAWSConnector)
+	// builder.RegisterFactory("slack", connectors.NewSlackConnector)
+
+	// Set configurations for all enabled connectors
+	for name, cfg := range configs {
+		if !cfg.Enabled {
+			continue // Skip disabled connectors
+		}
+
+		connCfg := connectors.Config{
+			Enabled:   cfg.Enabled,
+			APIKey:    cfg.APIKey,
+			Endpoint:  cfg.Endpoint,
+			RateLimit: cfg.RateLimit,
+			Timeout:   cfg.Timeout,
+			Extra:     make(map[string]interface{}),
+		}
+		// Convert string map to interface map
+		for k, v := range cfg.Extra {
+			connCfg.Extra[k] = v
+		}
+		builder.SetConfig(name, connCfg)
+	}
+
+	// Build and validate registry
+	return builder.Build(context.Background())
 }
 
 // AnalyzeWithRequest implements the Engine interface (legacy method from Feature 002)

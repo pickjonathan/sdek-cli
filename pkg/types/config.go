@@ -32,21 +32,22 @@ type SourcesConfig struct {
 
 // AIConfig contains AI analysis settings (Feature 002 + 003: AI Evidence Analysis + Context Injection)
 type AIConfig struct {
-	Enabled      bool              `json:"enabled" mapstructure:"enabled"`
-	Provider     string            `json:"provider" mapstructure:"provider"` // anthropic|openai
-	Model        string            `json:"model" mapstructure:"model"`
-	OpenAIKey    string            `json:"openai_key" mapstructure:"openai_key"`
-	AnthropicKey string            `json:"anthropic_key" mapstructure:"anthropic_key"`
-	APIKey       string            `json:"apiKey" mapstructure:"apiKey"`           // Feature 003: Unified API key field
-	Mode         string            `json:"mode" mapstructure:"mode"`               // Feature 003: disabled|context|autonomous
-	Timeout      int               `json:"timeout" mapstructure:"timeout"`         // seconds
-	RateLimit    int               `json:"rate_limit" mapstructure:"rate_limit"`   // requests per minute
-	CacheDir     string            `json:"cache_dir" mapstructure:"cache_dir"`     // cache directory path
-	NoCache      bool              `json:"no_cache" mapstructure:"no_cache"`       // Feature 003: Disable caching
-	Concurrency  ConcurrencyLimits `json:"concurrency" mapstructure:"concurrency"` // Feature 003: Concurrency limits
-	Budgets      BudgetLimits      `json:"budgets" mapstructure:"budgets"`         // Feature 003: Budget limits
-	Autonomous   AutonomousConfig  `json:"autonomous" mapstructure:"autonomous"`   // Feature 003: Autonomous mode config
-	Redaction    RedactionConfig   `json:"redaction" mapstructure:"redaction"`     // Feature 003: Redaction settings
+	Enabled      bool                       `json:"enabled" mapstructure:"enabled"`
+	Provider     string                     `json:"provider" mapstructure:"provider"` // anthropic|openai
+	Model        string                     `json:"model" mapstructure:"model"`
+	OpenAIKey    string                     `json:"openai_key" mapstructure:"openai_key"`
+	AnthropicKey string                     `json:"anthropic_key" mapstructure:"anthropic_key"`
+	APIKey       string                     `json:"apiKey" mapstructure:"apiKey"`           // Feature 003: Unified API key field
+	Mode         string                     `json:"mode" mapstructure:"mode"`               // Feature 003: disabled|context|autonomous
+	Timeout      int                        `json:"timeout" mapstructure:"timeout"`         // seconds
+	RateLimit    int                        `json:"rate_limit" mapstructure:"rate_limit"`   // requests per minute
+	CacheDir     string                     `json:"cache_dir" mapstructure:"cache_dir"`     // cache directory path
+	NoCache      bool                       `json:"no_cache" mapstructure:"no_cache"`       // Feature 003: Disable caching
+	Concurrency  ConcurrencyLimits          `json:"concurrency" mapstructure:"concurrency"` // Feature 003: Concurrency limits
+	Budgets      BudgetLimits               `json:"budgets" mapstructure:"budgets"`         // Feature 003: Budget limits
+	Autonomous   AutonomousConfig           `json:"autonomous" mapstructure:"autonomous"`   // Feature 003: Autonomous mode config
+	Redaction    RedactionConfig            `json:"redaction" mapstructure:"redaction"`     // Feature 003: Redaction settings
+	Connectors   map[string]ConnectorConfig `json:"connectors" mapstructure:"connectors"`   // Feature 003: MCP connector config
 }
 
 // ConcurrencyLimits defines concurrency constraints for AI operations (Feature 003)
@@ -75,6 +76,16 @@ type AutoApproveConfig map[string][]string // source -> patterns
 type RedactionConfig struct {
 	Enabled  bool     `json:"enabled" mapstructure:"enabled"`   // Default: true
 	Denylist []string `json:"denylist" mapstructure:"denylist"` // Exact match strings
+}
+
+// ConnectorConfig defines configuration for MCP evidence connectors (Feature 003)
+type ConnectorConfig struct {
+	Enabled   bool              `json:"enabled" mapstructure:"enabled"`       // Enable this connector
+	APIKey    string            `json:"api_key" mapstructure:"api_key"`       // API key or token (env: ${VAR})
+	Endpoint  string            `json:"endpoint" mapstructure:"endpoint"`     // Optional custom endpoint URL
+	RateLimit int               `json:"rate_limit" mapstructure:"rate_limit"` // Requests per minute (0 = unlimited)
+	Timeout   int               `json:"timeout" mapstructure:"timeout"`       // Request timeout in seconds
+	Extra     map[string]string `json:"extra" mapstructure:"extra"`           // Connector-specific settings
 }
 
 // AI provider constants
@@ -136,6 +147,25 @@ func DefaultConfig() *Config {
 			Redaction: RedactionConfig{
 				Enabled:  true,
 				Denylist: []string{},
+			},
+			Connectors: map[string]ConnectorConfig{
+				"github": {
+					Enabled:   false,
+					RateLimit: 60,
+					Timeout:   30,
+				},
+				"jira": {
+					Enabled: false,
+					Timeout: 30,
+				},
+				"aws": {
+					Enabled: false,
+					Timeout: 30,
+				},
+				"slack": {
+					Enabled: false,
+					Timeout: 30,
+				},
 			},
 		},
 	}
@@ -290,6 +320,40 @@ func ValidateConfig(c *Config) error {
 		}
 		if c.AI.Budgets.MaxTokens <= 0 {
 			return fmt.Errorf("AI budgets.maxTokens must be positive, got %d", c.AI.Budgets.MaxTokens)
+		}
+
+		// Validate connector configs (Feature 003)
+		if c.AI.Connectors != nil {
+			validConnectors := []string{"github", "jira", "aws", "slack"}
+			for name, conn := range c.AI.Connectors {
+				// Validate connector name
+				valid = false
+				for _, validName := range validConnectors {
+					if name == validName {
+						valid = true
+						break
+					}
+				}
+				if !valid {
+					return fmt.Errorf("invalid connector name: %s, must be one of %v", name, validConnectors)
+				}
+
+				// Validate timeout if set
+				if conn.Timeout < 0 {
+					return fmt.Errorf("connector %s: timeout cannot be negative, got %d", name, conn.Timeout)
+				}
+
+				// Validate rate limit if set
+				if conn.RateLimit < 0 {
+					return fmt.Errorf("connector %s: rate_limit cannot be negative, got %d", name, conn.RateLimit)
+				}
+
+				// Warn if enabled but no API key (unless it's a test)
+				if conn.Enabled && conn.APIKey == "" && name != "mock" {
+					// Note: This is a warning-level issue, not an error
+					// API keys can be provided via environment variables
+				}
+			}
 		}
 	}
 

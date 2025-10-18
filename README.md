@@ -616,6 +616,210 @@ Based on typical usage (100 events, 124 controls):
 
 **Note**: Costs vary based on event count and control complexity.
 
+### Autonomous Evidence Collection (Experimental)
+
+sdek-cli includes an **experimental autonomous mode** that uses AI to intelligently plan and execute evidence collection across multiple data sources via Model Context Protocol (MCP) connectors.
+
+#### Overview
+
+Instead of manually specifying which evidence to analyze, autonomous mode:
+
+1. **AI Planning**: Analyzes framework requirements and generates an evidence collection plan
+2. **Smart Queries**: Identifies relevant data sources and query patterns
+3. **Automated Execution**: Fetches evidence from GitHub, Jira, AWS, Slack automatically
+4. **Quality Filtering**: Validates signal strength and filters low-quality data
+5. **AI Analysis**: Analyzes collected evidence with context injection
+
+```bash
+# Generate and execute autonomous evidence collection plan
+./sdek ai plan \
+  --framework SOC2 \
+  --section CC6.1 \
+  --excerpts-file ./policies/soc2_excerpts.json \
+  --auto-approve
+
+# Review plan before execution (default behavior)
+./sdek ai plan \
+  --framework ISO27001 \
+  --section A.9.4.2 \
+  --excerpts-file ./policies/iso_excerpts.json
+```
+
+#### MCP Connectors
+
+Autonomous mode leverages **Model Context Protocol (MCP)** connectors to fetch evidence:
+
+| Connector | Status | Capabilities |
+|-----------|--------|--------------|
+| **GitHub** | ✅ Implemented | Commits, PRs, issues, releases, code changes |
+| **Jira** | 🔨 Planned | Tickets, comments, transitions, JQL queries |
+| **AWS** | 🔨 Planned | CloudTrail logs, IAM events, Config changes |
+| **Slack** | 🔨 Planned | Messages, threads, channel history |
+
+#### Configuration
+
+Add connector configuration to your config file:
+
+```yaml
+ai:
+  enabled: true
+  provider: openai
+  autonomous:
+    enabled: true
+    auto_approve: false  # Require manual approval before execution
+  
+  # MCP Connector configuration
+  connectors:
+    github:
+      enabled: true
+      api_key: ${GITHUB_TOKEN}  # or use env var
+      endpoint: https://api.github.com
+      rate_limit: 5000  # requests per hour
+      timeout: 30       # seconds
+      extra:
+        owner: your-org
+        default_repos:
+          - backend
+          - frontend
+    
+    jira:
+      enabled: false
+      api_key: ${JIRA_API_TOKEN}
+      endpoint: https://your-domain.atlassian.net
+      rate_limit: 100
+      timeout: 30
+      extra:
+        project_key: PROJ
+    
+    aws:
+      enabled: false
+      # Uses AWS SDK credentials (~/.aws/credentials)
+      extra:
+        regions:
+          - us-east-1
+          - us-west-2
+    
+    slack:
+      enabled: false
+      api_key: ${SLACK_BOT_TOKEN}
+      endpoint: https://slack.com/api
+      rate_limit: 50
+      timeout: 30
+```
+
+**Environment Variables:**
+
+```bash
+# GitHub Personal Access Token
+export GITHUB_TOKEN="ghp_..."
+
+# Jira API Token
+export JIRA_API_TOKEN="..."
+
+# AWS Credentials (standard AWS SDK)
+export AWS_ACCESS_KEY_ID="..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_REGION="us-east-1"
+
+# Slack Bot Token
+export SLACK_BOT_TOKEN="xoxb-..."
+```
+
+#### How It Works
+
+**Step 1: AI generates evidence collection plan**
+
+```bash
+./sdek ai plan --framework SOC2 --section CC6.1 --excerpts-file policies.json
+```
+
+The AI analyzes the framework requirements and creates a plan:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 📋 Evidence Collection Plan                                     │
+│                                                                  │
+│ Framework: SOC2 | Section: CC6.1                                │
+│ Control: Logical access security controls                       │
+│                                                                  │
+│ Proposed Evidence Sources:                                      │
+│                                                                  │
+│ 1. GitHub Commits [High Signal - 85%]                          │
+│    Query: "authentication OR MFA OR password policy"            │
+│    Filters: last 90 days, repos: auth-service, user-mgmt       │
+│    Rationale: Direct evidence of access control implementations │
+│                                                                  │
+│ 2. Jira Tickets [Medium Signal - 70%]                          │
+│    Query: "project=SEC AND labels=access-control"               │
+│    Filters: last 180 days, status: Done, Closed                │
+│    Rationale: Planned and completed access control work        │
+│                                                                  │
+│ 3. AWS CloudTrail [High Signal - 90%]                          │
+│    Query: "IAM policy changes AND authentication events"        │
+│    Filters: last 90 days, eventName: CreatePolicy, AttachUser  │
+│    Rationale: Infrastructure-level access control changes       │
+│                                                                  │
+│ [A]pprove | [R]eject | [M]odify                                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Step 2: User approval (unless --auto-approve)**
+
+Review and approve/modify the plan interactively.
+
+**Step 3: Execute evidence collection**
+
+sdek fetches evidence from all enabled connectors in parallel:
+
+```
+Fetching from GitHub... ████████████████ 23 commits found
+Fetching from Jira...   ████████████████ 12 tickets found
+Fetching from AWS...    ████████████████ 8 IAM events found
+```
+
+**Step 4: AI analyzes collected evidence**
+
+The collected evidence is automatically analyzed with context injection:
+
+```
+Analyzing 43 events for SOC2 CC6.1...
+✅ Analysis complete! Confidence: 88% | Finding saved to findings.json
+```
+
+#### Auto-Approve Mode
+
+For CI/CD pipelines or trusted environments:
+
+```bash
+# Skip manual approval step
+./sdek ai plan \
+  --framework SOC2 \
+  --section CC6.1 \
+  --excerpts-file policies.json \
+  --auto-approve
+```
+
+**⚠️ Warning**: Auto-approve mode will execute queries against all enabled connectors without confirmation. Ensure your rate limits and API quotas are appropriately configured.
+
+#### Best Practices
+
+1. **Start Small**: Enable one connector at a time to understand query patterns
+2. **Set Rate Limits**: Configure conservative rate limits to avoid API quota exhaustion
+3. **Review Plans**: Don't use `--auto-approve` until you trust the AI's query generation
+4. **Monitor Costs**: Track API usage across connectors (especially AWS CloudTrail)
+5. **Use Timeouts**: Set reasonable timeouts to prevent long-running queries
+6. **Test Queries**: Validate connector queries manually before autonomous execution
+
+#### Limitations
+
+- **Experimental Feature**: Autonomous mode is under active development
+- **Provider Required**: Requires OpenAI or Anthropic API access
+- **Connector Availability**: Only GitHub fully implemented (Jira/AWS/Slack planned)
+- **Query Validation**: AI-generated queries may need refinement for specific use cases
+- **Cost Considerations**: Multiple API calls (AI + connectors) can accumulate costs
+
+See [docs/CONNECTORS.md](./docs/CONNECTORS.md) for detailed connector setup guides.
+
 ## Development
 
 ### Project Structure

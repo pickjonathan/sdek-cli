@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/pickjonathan/sdek-cli/internal/ai"
 	"github.com/pickjonathan/sdek-cli/internal/analyze"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
 	"github.com/pickjonathan/sdek-cli/ui/components"
@@ -32,7 +33,12 @@ Workflow:
 5. Finding is exported with full provenance tracking
 
 This enables truly autonomous compliance evidence collection where the AI
-determines what data to collect and from where, based on policy requirements.`,
+determines what data to collect and from where, based on policy requirements.
+
+Connectors:
+The command requires at least one enabled connector in config.yaml (ai.connectors).
+Supported connectors: github, jira, aws, slack
+Configure connectors with API keys, endpoints, and rate limits as needed.`,
 	Example: `  # Generate plan with interactive approval
   sdek ai plan --framework SOC2 --section CC6.1 \
       --excerpts-file ./policies/soc2_excerpts.json
@@ -105,6 +111,24 @@ Note: Budget limits (max sources, API calls, tokens) are configured in config.ya
 			}
 		}
 
+		// Validate connector configuration
+		connectors := viper.GetStringMap("ai.connectors")
+		if len(connectors) == 0 {
+			slog.Warn("No connectors configured - autonomous mode requires at least one enabled connector")
+		} else {
+			// Check if at least one connector is enabled
+			hasEnabled := false
+			for name := range connectors {
+				if viper.GetBool(fmt.Sprintf("ai.connectors.%s.enabled", name)) {
+					hasEnabled = true
+					break
+				}
+			}
+			if !hasEnabled {
+				return fmt.Errorf("no connectors enabled - autonomous mode requires at least one enabled connector (github, jira, aws, or slack)")
+			}
+		}
+
 		return nil
 	},
 	RunE: runAIPlan,
@@ -170,11 +194,24 @@ func runAIPlan(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create context preamble: %w", err)
 	}
 
-	// Step 4: Initialize AI engine
+	// Step 4: Initialize AI engine using new factory
 	slog.Info("Initializing AI engine", "provider", cfg.AI.Provider)
-	engine, err := initializeAIEngine(cfg)
+	engine, err := ai.NewEngineFromConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize AI engine: %w", err)
+	}
+
+	// Log enabled connectors
+	if len(cfg.AI.Connectors) > 0 {
+		enabledConnectors := []string{}
+		for name, conn := range cfg.AI.Connectors {
+			if conn.Enabled {
+				enabledConnectors = append(enabledConnectors, name)
+			}
+		}
+		if len(enabledConnectors) > 0 {
+			slog.Info("Connectors enabled", "connectors", enabledConnectors)
+		}
 	}
 
 	// Step 5: Generate plan

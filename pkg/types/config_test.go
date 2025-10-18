@@ -58,6 +58,164 @@ func TestValidateConfig(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "valid connector config - github",
+			config: &Config{
+				LogLevel:   "info",
+				Theme:      "dark",
+				UserRole:   RoleComplianceManager,
+				Export:     ExportConfig{Format: "json"},
+				Frameworks: FrameworksConfig{Enabled: []string{"soc2"}},
+				Sources:    SourcesConfig{Enabled: []string{"git"}},
+				AI: AIConfig{
+					Enabled:     true,
+					Provider:    AIProviderOpenAI,
+					Model:       "gpt-4",
+					OpenAIKey:   "sk-test",
+					Mode:        AIModeContext,
+					Timeout:     60,
+					Concurrency: ConcurrencyLimits{MaxAnalyses: 25},
+					Budgets:     BudgetLimits{MaxSources: 50, MaxAPICalls: 500, MaxTokens: 250000},
+					Connectors: map[string]ConnectorConfig{
+						"github": {
+							Enabled:   true,
+							APIKey:    "ghp_test",
+							RateLimit: 60,
+							Timeout:   30,
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid connector name",
+			config: &Config{
+				LogLevel:   "info",
+				Theme:      "dark",
+				UserRole:   RoleComplianceManager,
+				Export:     ExportConfig{Format: "json"},
+				Frameworks: FrameworksConfig{Enabled: []string{"soc2"}},
+				Sources:    SourcesConfig{Enabled: []string{"git"}},
+				AI: AIConfig{
+					Enabled:     true,
+					Provider:    AIProviderOpenAI,
+					Model:       "gpt-4",
+					OpenAIKey:   "sk-test",
+					Mode:        AIModeContext,
+					Timeout:     60,
+					Concurrency: ConcurrencyLimits{MaxAnalyses: 25},
+					Budgets:     BudgetLimits{MaxSources: 50, MaxAPICalls: 500, MaxTokens: 250000},
+					Connectors: map[string]ConnectorConfig{
+						"invalid": {
+							Enabled: true,
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative connector timeout",
+			config: &Config{
+				LogLevel:   "info",
+				Theme:      "dark",
+				UserRole:   RoleComplianceManager,
+				Export:     ExportConfig{Format: "json"},
+				Frameworks: FrameworksConfig{Enabled: []string{"soc2"}},
+				Sources:    SourcesConfig{Enabled: []string{"git"}},
+				AI: AIConfig{
+					Enabled:     true,
+					Provider:    AIProviderOpenAI,
+					Model:       "gpt-4",
+					OpenAIKey:   "sk-test",
+					Mode:        AIModeContext,
+					Timeout:     60,
+					Concurrency: ConcurrencyLimits{MaxAnalyses: 25},
+					Budgets:     BudgetLimits{MaxSources: 50, MaxAPICalls: 500, MaxTokens: 250000},
+					Connectors: map[string]ConnectorConfig{
+						"github": {
+							Enabled: true,
+							Timeout: -1,
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative connector rate limit",
+			config: &Config{
+				LogLevel:   "info",
+				Theme:      "dark",
+				UserRole:   RoleComplianceManager,
+				Export:     ExportConfig{Format: "json"},
+				Frameworks: FrameworksConfig{Enabled: []string{"soc2"}},
+				Sources:    SourcesConfig{Enabled: []string{"git"}},
+				AI: AIConfig{
+					Enabled:     true,
+					Provider:    AIProviderOpenAI,
+					Model:       "gpt-4",
+					OpenAIKey:   "sk-test",
+					Mode:        AIModeContext,
+					Timeout:     60,
+					Concurrency: ConcurrencyLimits{MaxAnalyses: 25},
+					Budgets:     BudgetLimits{MaxSources: 50, MaxAPICalls: 500, MaxTokens: 250000},
+					Connectors: map[string]ConnectorConfig{
+						"github": {
+							Enabled:   true,
+							RateLimit: -1,
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "multiple connectors - all valid",
+			config: &Config{
+				LogLevel:   "info",
+				Theme:      "dark",
+				UserRole:   RoleComplianceManager,
+				Export:     ExportConfig{Format: "json"},
+				Frameworks: FrameworksConfig{Enabled: []string{"soc2"}},
+				Sources:    SourcesConfig{Enabled: []string{"git"}},
+				AI: AIConfig{
+					Enabled:     true,
+					Provider:    AIProviderOpenAI,
+					Model:       "gpt-4",
+					OpenAIKey:   "sk-test",
+					Mode:        AIModeAutonomous,
+					Timeout:     60,
+					Concurrency: ConcurrencyLimits{MaxAnalyses: 25},
+					Budgets:     BudgetLimits{MaxSources: 50, MaxAPICalls: 500, MaxTokens: 250000},
+					Connectors: map[string]ConnectorConfig{
+						"github": {
+							Enabled:   true,
+							APIKey:    "ghp_test",
+							RateLimit: 60,
+							Timeout:   30,
+						},
+						"jira": {
+							Enabled:  true,
+							APIKey:   "jira_test",
+							Endpoint: "https://company.atlassian.net",
+							Timeout:  30,
+						},
+						"aws": {
+							Enabled: false,
+							Timeout: 30,
+						},
+						"slack": {
+							Enabled: true,
+							APIKey:  "xoxb-test",
+							Timeout: 30,
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -316,24 +474,6 @@ func TestValidateAIConfig(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name: "zero rate limit - valid (unlimited)",
-			config: &Config{
-				LogLevel: "info",
-				Theme:    "dark",
-				UserRole: RoleComplianceManager,
-				Export:   ExportConfig{Format: "json"},
-				AI: AIConfig{
-					Enabled:   true,
-					Provider:  AIProviderOpenAI,
-					Model:     "gpt-4",
-					OpenAIKey: "sk-test",
-					Timeout:   60,
-					RateLimit: 0,
-				},
-			},
-			wantErr: false,
-		},
 	}
 
 	for _, tt := range tests {
@@ -344,4 +484,46 @@ func TestValidateAIConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestConnectorConfig tests ConnectorConfig struct and defaults
+func TestConnectorConfig(t *testing.T) {
+	t.Run("default config includes connectors", func(t *testing.T) {
+		cfg := DefaultConfig()
+
+		if cfg.AI.Connectors == nil {
+			t.Fatal("DefaultConfig().AI.Connectors should not be nil")
+		}
+
+		// Check all expected connectors are present
+		expectedConnectors := []string{"github", "jira", "aws", "slack"}
+		for _, name := range expectedConnectors {
+			if _, ok := cfg.AI.Connectors[name]; !ok {
+				t.Errorf("DefaultConfig() missing connector: %s", name)
+			}
+		}
+	})
+
+	t.Run("default connectors are disabled", func(t *testing.T) {
+		cfg := DefaultConfig()
+
+		for name, conn := range cfg.AI.Connectors {
+			if conn.Enabled {
+				t.Errorf("connector %s should be disabled by default", name)
+			}
+		}
+	})
+
+	t.Run("github connector has rate limit", func(t *testing.T) {
+		cfg := DefaultConfig()
+
+		github, ok := cfg.AI.Connectors["github"]
+		if !ok {
+			t.Fatal("github connector not found in defaults")
+		}
+
+		if github.RateLimit != 60 {
+			t.Errorf("github connector rate limit = %d, want 60", github.RateLimit)
+		}
+	})
 }

@@ -26,3 +26,6 @@ At the second phase the AI given the complience ( SOC2 ) and the specific excerp
 ** The cli tool should be MCP compatible exposing its usages to major AI providers.
 
 ** Comperhansive examples folder with reprts, commands and informations.
+
+** The agent orchestrator and agents its using should have connections to tools via MCP's, meaning the sdek agents should have MCP configurations like vs code and cursor in the same structure of the json configurations of MCP.
+the agents should use the MCP's to collect evidance for analysis.

@@ -12,11 +12,22 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-// OpenAIEngine implements ai.Engine using OpenAI's API
+// Register OpenAI provider factory on package initialization
+func init() {
+	ai.RegisterProviderFactory("openai", func(config ai.AIConfig) (ai.Provider, error) {
+		return NewOpenAIEngine(config)
+	})
+}
+
+// OpenAIEngine implements ai.Engine and ai.Provider using OpenAI's API
 type OpenAIEngine struct {
 	client  *openai.Client
 	config  ai.AIConfig
 	limiter *RateLimiter
+
+	// Testing/debugging fields
+	callCount  int
+	lastPrompt string
 }
 
 // NewOpenAIEngine creates a new OpenAI engine
@@ -530,4 +541,83 @@ func isTimeoutError(err error) bool {
 
 func isServerError(err error) bool {
 	return err != nil && (err.Error() == "500" || err.Error() == "502" || err.Error() == "503")
+}
+
+// ============================================================================
+// Provider Interface Implementation (for autonomous mode - Feature 003)
+// ============================================================================
+
+// AnalyzeWithContext implements ai.Provider.AnalyzeWithContext
+// This is a simpler interface for autonomous mode that takes a pre-formatted prompt
+// and returns the raw AI response as a string
+func (e *OpenAIEngine) AnalyzeWithContext(ctx context.Context, prompt string) (string, error) {
+	// Validate prompt
+	if prompt == "" {
+		return "", fmt.Errorf("prompt cannot be empty")
+	}
+
+	// Wait for rate limiter
+	if err := e.limiter.Wait(ctx); err != nil {
+		return "", err
+	}
+
+	// Set timeout from config if not already set
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(e.config.Timeout)*time.Second)
+		defer cancel()
+	}
+
+	// Track for testing
+	e.callCount++
+	e.lastPrompt = prompt
+
+	// Build request
+	chatReq := openai.ChatCompletionRequest{
+		Model: e.config.Model,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: "You are an expert compliance analyst. Analyze evidence and provide detailed, policy-grounded findings.",
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: prompt,
+			},
+		},
+		Temperature: float32(e.config.Temperature),
+		MaxTokens:   e.config.MaxTokens,
+	}
+
+	// Make API call with retry
+	var resp openai.ChatCompletionResponse
+	operation := func() error {
+		var err error
+		resp, err = e.client.CreateChatCompletion(ctx, chatReq)
+		return err
+	}
+
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = time.Duration(e.config.Timeout) * time.Second
+
+	err := backoff.Retry(operation, bo)
+	if err != nil {
+		return "", e.handleError(err)
+	}
+
+	if len(resp.Choices) == 0 {
+		return "", fmt.Errorf("no response from OpenAI")
+	}
+
+	return resp.Choices[0].Message.Content, nil
+}
+
+// GetCallCount implements ai.Provider.GetCallCount
+func (e *OpenAIEngine) GetCallCount() int {
+	return e.callCount
+}
+
+// GetLastPrompt implements ai.Provider.GetLastPrompt
+func (e *OpenAIEngine) GetLastPrompt() string {
+	return e.lastPrompt
 }
