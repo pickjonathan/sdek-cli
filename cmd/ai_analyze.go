@@ -188,24 +188,58 @@ type Excerpt struct {
 }
 
 // loadExcerpts loads policy excerpts from a JSON file
+// Supports both array format and map format (legacy)
 func loadExcerpts(filepath string) ([]Excerpt, error) {
 	data, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
+	// Try array format first (new format)
 	var excerpts []Excerpt
-	if err := json.Unmarshal(data, &excerpts); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	if err := json.Unmarshal(data, &excerpts); err == nil {
+		return excerpts, nil
+	}
+
+	// Fall back to map format (legacy format from testdata)
+	var excerptMap map[string]struct {
+		ControlID string `json:"control_id"`
+		Title     string `json:"title"`
+		Excerpt   string `json:"excerpt"`
+	}
+	if err := json.Unmarshal(data, &excerptMap); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON (tried array and map formats): %w", err)
+	}
+
+	// Convert map to array format
+	excerpts = make([]Excerpt, 0, len(excerptMap))
+	for section, e := range excerptMap {
+		excerpts = append(excerpts, Excerpt{
+			Framework: "",     // Will be filled from command flag
+			Version:   "2023", // Default version for legacy format
+			Section:   section,
+			Text:      e.Excerpt,
+		})
 	}
 
 	return excerpts, nil
 }
 
 // findExcerpt finds an excerpt matching framework and section
+// If framework is empty in excerpt (legacy map format), match on section only
 func findExcerpt(excerpts []Excerpt, framework, section string) (Excerpt, bool) {
 	for _, e := range excerpts {
-		if e.Framework == framework && e.Section == section {
+		// Match section first
+		if e.Section != section {
+			continue
+		}
+		// If excerpt has no framework (legacy format), accept it
+		if e.Framework == "" {
+			e.Framework = framework // Fill in the framework from request
+			return e, true
+		}
+		// Otherwise require exact framework match
+		if e.Framework == framework {
 			return e, true
 		}
 	}
