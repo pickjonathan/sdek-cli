@@ -46,7 +46,7 @@ func (m ContextPreviewModel) Cancelled() bool {
 }
 
 // Update handles messages
-func (m ContextPreviewModel) Update(msg tea.Msg) (ContextPreviewModel, tea.Cmd) {
+func (m ContextPreviewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {

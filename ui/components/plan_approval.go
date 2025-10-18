@@ -51,7 +51,7 @@ func (m PlanApprovalModel) GetPlan() *types.EvidencePlan {
 }
 
 // Update handles messages
-func (m PlanApprovalModel) Update(msg tea.Msg) (PlanApprovalModel, tea.Cmd) {
+func (m PlanApprovalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {

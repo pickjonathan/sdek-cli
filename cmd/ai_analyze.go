@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
+	"github.com/pickjonathan/sdek-cli/ui/components"
 	"github.com/spf13/cobra"
 )
 
@@ -113,9 +115,9 @@ context-grounded analysis for specific policy sections.`,
 			return fmt.Errorf("excerpt not found for %s %s in %s", framework, section, excerptsFile)
 		}
 
-		// Step 3: Build ContextPreamble (validate it works)
+		// Step 3: Build ContextPreamble
 		slog.Info("Building context preamble", "framework", framework, "section", section)
-		_, err = types.NewContextPreamble(
+		preamble, err := types.NewContextPreamble(
 			framework,
 			excerpt.Version,
 			section,
@@ -139,6 +141,11 @@ context-grounded analysis for specific policy sections.`,
 			return fmt.Errorf("no evidence events found in specified paths")
 		}
 
+		// Step 5: Show interactive context preview (Feature 003)
+		if err := showContextPreview(preamble, len(evidence.Events)); err != nil {
+			return fmt.Errorf("preview cancelled or failed: %w", err)
+		}
+
 		// TODO: Full implementation requires:
 		// 1. Load config and check AI settings
 		// 2. Initialize AI Engine with real provider
@@ -148,15 +155,41 @@ context-grounded analysis for specific policy sections.`,
 		// 6. Display summary
 		//
 		// For now, just validate inputs and data loading works
-		fmt.Println("✓ Command validation successful!")
+		fmt.Println("\n✓ Analysis preparation complete!")
 		fmt.Printf("  Framework: %s %s\n", framework, excerpt.Version)
 		fmt.Printf("  Section: %s\n", section)
-		fmt.Printf("  Excerpt length: %d chars\n", len(excerpt.Text))
 		fmt.Printf("  Evidence events: %d\n", len(evidence.Events))
 		fmt.Println("\nNote: Full AI analysis implementation pending (requires provider setup)")
 
 		return nil
 	},
+}
+
+// showContextPreview displays an interactive preview of the analysis context
+func showContextPreview(preamble *types.ContextPreamble, evidenceCount int) error {
+	model := components.NewContextPreview(*preamble, evidenceCount)
+	p := tea.NewProgram(model)
+	
+	finalModel, err := p.Run()
+	if err != nil {
+		return fmt.Errorf("failed to run preview: %w", err)
+	}
+	
+	// Check if user confirmed
+	previewModel, ok := finalModel.(components.ContextPreviewModel)
+	if !ok {
+		return fmt.Errorf("unexpected model type")
+	}
+	
+	if previewModel.Cancelled() {
+		return fmt.Errorf("user cancelled")
+	}
+	
+	if !previewModel.Confirmed() {
+		return fmt.Errorf("preview not confirmed")
+	}
+	
+	return nil
 }
 
 func init() {
