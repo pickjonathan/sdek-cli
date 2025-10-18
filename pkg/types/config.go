@@ -116,7 +116,7 @@ func DefaultConfig() *Config {
 		AI: AIConfig{
 			Enabled:   false, // Disabled by default (opt-in)
 			Provider:  AIProviderOpenAI,
-			Model:     "gpt-4", // Default OpenAI model
+			Model:     "gpt-5", // Default OpenAI model
 			Mode:      AIModeDisabled,
 			Timeout:   60, // 60 seconds
 			RateLimit: 10, // 10 requests per minute

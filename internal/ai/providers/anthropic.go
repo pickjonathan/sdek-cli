@@ -70,9 +70,177 @@ func (e *AnthropicEngine) AnalyzeWithRequest(ctx context.Context, req *ai.Analys
 }
 
 // Analyze implements ai.Engine.Analyze (Feature 003)
-// This is a stub that returns an error - Anthropic provider needs Feature 003 implementation
+// Analyzes evidence against policy context and returns a Finding
 func (e *AnthropicEngine) Analyze(ctx context.Context, preamble types.ContextPreamble, evidence types.EvidenceBundle) (*types.Finding, error) {
-	return nil, fmt.Errorf("Feature 003 not yet implemented for Anthropic provider - use AnalyzeWithRequest for now")
+	// Validate inputs
+	if preamble.Framework == "" {
+		return nil, fmt.Errorf("framework is required in context preamble")
+	}
+	if preamble.Section == "" {
+		return nil, fmt.Errorf("section is required in context preamble")
+	}
+	if len(evidence.Events) == 0 {
+		return nil, fmt.Errorf("no evidence events provided")
+	}
+
+	// Wait for rate limiter
+	if err := e.limiter.Wait(ctx); err != nil {
+		return nil, err
+	}
+
+	// Set timeout from config if not already set
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(e.config.Timeout)*time.Second)
+		defer cancel()
+	}
+
+	// Build the analysis prompt
+	prompt := e.buildContextAnalysisPrompt(preamble, evidence)
+
+	// Define the tool schema for structured output
+	toolParam := anthropic.ToolParam{
+		Name:        "analyze_compliance_evidence",
+		Description: anthropic.String("Analyze evidence events against policy context for compliance"),
+		InputSchema: anthropic.ToolInputSchemaParam{
+			Properties: map[string]interface{}{
+				"title": map[string]interface{}{
+					"type":        "string",
+					"description": "Brief title summarizing the finding (20-100 chars)",
+				},
+				"summary": map[string]interface{}{
+					"type":        "string",
+					"description": "Summary of analysis and what was found (100-500 chars)",
+				},
+				"justification": map[string]interface{}{
+					"type":        "string",
+					"description": "Explanation of how evidence maps to policy requirements (100-1000 chars)",
+				},
+				"confidence_score": map[string]interface{}{
+					"type":        "number",
+					"description": "Confidence score (0.0-1.0)",
+					"minimum":     0,
+					"maximum":     1,
+				},
+				"residual_risk": map[string]interface{}{
+					"type":        "string",
+					"description": "Any gaps, concerns, or remaining risks (0-500 chars)",
+				},
+				"mapped_controls": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "List of control IDs that this evidence supports",
+				},
+				"citations": map[string]interface{}{
+					"type":        "array",
+					"items":       map[string]interface{}{"type": "string"},
+					"description": "Event IDs or sources cited in the analysis",
+				},
+				"severity": map[string]interface{}{
+					"type":        "string",
+					"enum":        []string{"low", "medium", "high", "critical"},
+					"description": "Severity level based on gaps and risks",
+				},
+			},
+			Required: []string{"title", "summary", "justification", "confidence_score", "mapped_controls"},
+		},
+	}
+
+	// Make the API call
+	msg, err := e.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:       anthropic.Model(e.config.Model),
+		MaxTokens:   int64(e.config.MaxTokens),
+		Temperature: anthropic.Float(float64(e.config.Temperature)),
+		System: []anthropic.TextBlockParam{
+			{
+				Text: "You are an expert compliance analyst. Analyze evidence against policy requirements and provide detailed findings.",
+			},
+		},
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
+		},
+		Tools: []anthropic.ToolUnionParam{{OfTool: &toolParam}},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("Anthropic API call failed: %w", err)
+	}
+
+	// Parse the tool use response
+	if len(msg.Content) == 0 {
+		return nil, fmt.Errorf("no response from Anthropic")
+	}
+
+	var toolUse *anthropic.ToolUseBlock
+	for _, content := range msg.Content {
+		block := content.AsAny()
+		if block, ok := block.(anthropic.ToolUseBlock); ok {
+			toolUse = &block
+			break
+		}
+	}
+
+	if toolUse == nil {
+		return nil, fmt.Errorf("no tool use in response")
+	}
+
+	// Parse the JSON input
+	inputJSON, err := json.Marshal(toolUse.Input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal tool input: %w", err)
+	}
+
+	var result struct {
+		Title           string   `json:"title"`
+		Summary         string   `json:"summary"`
+		Justification   string   `json:"justification"`
+		ConfidenceScore float64  `json:"confidence_score"`
+		ResidualRisk    string   `json:"residual_risk"`
+		MappedControls  []string `json:"mapped_controls"`
+		Citations       []string `json:"citations"`
+		Severity        string   `json:"severity"`
+	}
+
+	if err := json.Unmarshal(inputJSON, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse AI response: %w", err)
+	}
+
+	// Build the Finding
+	now := time.Now()
+	finding := &types.Finding{
+		ID:              fmt.Sprintf("finding-%s-%d", preamble.Section, now.Unix()),
+		ControlID:       preamble.Section,
+		FrameworkID:     preamble.Framework,
+		Title:           result.Title,
+		Description:     result.Summary,
+		Summary:         result.Summary,
+		Severity:        result.Severity,
+		Status:          types.StatusOpen,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		MappedControls:  result.MappedControls,
+		ConfidenceScore: result.ConfidenceScore,
+		ResidualRisk:    result.ResidualRisk,
+		Justification:   result.Justification,
+		Citations:       result.Citations,
+		ReviewRequired:  result.ConfidenceScore < 0.7, // Flag for review if confidence < 70%
+		Mode:            "ai",
+	}
+
+	// Build provenance from evidence sources
+	sourceCount := make(map[string]int)
+	for _, event := range evidence.Events {
+		sourceCount[event.Source]++
+	}
+	for source, count := range sourceCount {
+		finding.Provenance = append(finding.Provenance, types.ProvenanceEntry{
+			Source:     source,
+			Query:      "", // Not tracked at event level
+			EventsUsed: count,
+		})
+	}
+
+	return finding, nil
 }
 
 // ProposePlan implements ai.Engine.ProposePlan (Feature 003)
@@ -257,6 +425,53 @@ func (e *AnthropicEngine) performAnalysis(ctx context.Context, req *ai.AnalysisR
 }
 
 // buildPrompt constructs the prompt for Anthropic
+// buildContextAnalysisPrompt builds a prompt for Feature 003 context-based analysis
+func (e *AnthropicEngine) buildContextAnalysisPrompt(preamble types.ContextPreamble, evidence types.EvidenceBundle) string {
+	prompt := fmt.Sprintf(`Analyze the following evidence against policy requirements for %s %s.
+
+Framework: %s
+Section: %s
+Policy Excerpt:
+%s
+`, preamble.Framework, preamble.Section, preamble.Framework, preamble.Section, preamble.Excerpt)
+
+	// Add related controls if present
+	if len(preamble.ControlIDs) > 0 {
+		prompt += fmt.Sprintf("\nRelated Controls: %v\n", preamble.ControlIDs)
+	}
+
+	prompt += "\nEvidence Events:\n"
+	for i, event := range evidence.Events {
+		prompt += fmt.Sprintf("\n%d. [%s/%s] %s\n   ID: %s\n   Content: %s\n",
+			i+1, event.Source, event.Type, event.Timestamp.Format(time.RFC3339),
+			event.ID, event.Content)
+
+		// Add relevant metadata
+		if len(event.Metadata) > 0 {
+			prompt += "   Metadata: "
+			for k, v := range event.Metadata {
+				prompt += fmt.Sprintf("%s=%v ", k, v)
+			}
+			prompt += "\n"
+		}
+	}
+
+	prompt += `
+
+Provide a comprehensive compliance analysis including:
+1. Title: Brief summary of findings
+2. Summary: What evidence was found and how it relates to the policy
+3. Justification: Detailed explanation of compliance status
+4. Confidence Score: 0.0-1.0 based on evidence quality and coverage
+5. Residual Risk: Any gaps, concerns, or remaining risks
+6. Mapped Controls: Control IDs that this evidence supports
+7. Citations: Specific event IDs referenced in your analysis
+8. Severity: Overall risk level (low, medium, high, critical)
+`
+
+	return prompt
+}
+
 func (e *AnthropicEngine) buildPrompt(req *ai.AnalysisRequest) (system, user string) {
 	system = "You are a compliance analyst. Analyze events and map them to compliance controls."
 

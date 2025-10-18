@@ -8,9 +8,13 @@ import (
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/pickjonathan/sdek-cli/internal/ai"
+	"github.com/pickjonathan/sdek-cli/internal/ai/providers"
+	"github.com/pickjonathan/sdek-cli/internal/analyze"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
 	"github.com/pickjonathan/sdek-cli/ui/components"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // aiAnalyzeCmd represents the 'sdek ai analyze' command for context injection analysis
@@ -146,20 +150,54 @@ context-grounded analysis for specific policy sections.`,
 			return fmt.Errorf("preview cancelled or failed: %w", err)
 		}
 
-		// TODO: Full implementation requires:
-		// 1. Load config and check AI settings
-		// 2. Initialize AI Engine with real provider
-		// 3. Call Engine.Analyze()
-		// 4. Flag low confidence
-		// 5. Export finding to output file
-		// 6. Display summary
-		//
-		// For now, just validate inputs and data loading works
-		fmt.Println("\n✓ Analysis preparation complete!")
-		fmt.Printf("  Framework: %s %s\n", framework, excerpt.Version)
-		fmt.Printf("  Section: %s\n", section)
-		fmt.Printf("  Evidence events: %d\n", len(evidence.Events))
-		fmt.Println("\nNote: Full AI analysis implementation pending (requires provider setup)")
+		// Step 6: Load configuration
+		cfg, err := loadConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		// Step 7: Check if AI is enabled
+		if !cfg.AI.Enabled {
+			return fmt.Errorf("AI analysis is disabled in config. Set ai.enabled=true to use this command")
+		}
+
+		// Step 8: Initialize AI engine
+		slog.Info("Initializing AI engine", "provider", cfg.AI.Provider)
+		engine, err := initializeAIEngine(cfg)
+		if err != nil {
+			return fmt.Errorf("failed to initialize AI engine: %w", err)
+		}
+
+		// Step 9: Perform AI analysis
+		fmt.Println("\n🤖 Analyzing evidence with AI context injection...")
+		finding, err := engine.Analyze(cmd.Context(), *preamble, *evidence)
+		if err != nil {
+			return fmt.Errorf("AI analysis failed: %w", err)
+		}
+
+		slog.Info("AI analysis complete",
+			"confidence", finding.ConfidenceScore,
+			"controls", len(finding.MappedControls),
+			"citations", len(finding.Citations))
+
+		// Step 10: Flag low confidence findings
+		confidenceThreshold := preamble.Rubrics.ConfidenceThreshold
+		analyze.FlagLowConfidence(finding, confidenceThreshold)
+
+		if finding.ReviewRequired {
+			slog.Warn("Low confidence finding flagged for review",
+				"confidence", finding.ConfidenceScore,
+				"threshold", confidenceThreshold)
+		}
+
+		// Step 11: Export finding to output file
+		outputFile, _ := cmd.Flags().GetString("output")
+		if err := exportFinding(finding, outputFile); err != nil {
+			return fmt.Errorf("failed to export finding: %w", err)
+		}
+
+		// Step 12: Display summary
+		displayFindingSummary(finding, outputFile)
 
 		return nil
 	},
@@ -169,27 +207,170 @@ context-grounded analysis for specific policy sections.`,
 func showContextPreview(preamble *types.ContextPreamble, evidenceCount int) error {
 	model := components.NewContextPreview(*preamble, evidenceCount)
 	p := tea.NewProgram(model)
-	
+
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run preview: %w", err)
 	}
-	
+
 	// Check if user confirmed
 	previewModel, ok := finalModel.(components.ContextPreviewModel)
 	if !ok {
 		return fmt.Errorf("unexpected model type")
 	}
-	
+
 	if previewModel.Cancelled() {
 		return fmt.Errorf("user cancelled")
 	}
-	
+
 	if !previewModel.Confirmed() {
 		return fmt.Errorf("preview not confirmed")
 	}
-	
+
 	return nil
+}
+
+// loadConfig loads the configuration from Viper (which is already initialized by root.go)
+func loadConfig() (*types.Config, error) {
+	cfg := &types.Config{}
+
+	// Unmarshal viper config into types.Config
+	if err := viper.Unmarshal(cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+// initializeAIEngine creates an AI engine based on the config
+func initializeAIEngine(cfg *types.Config) (ai.Engine, error) {
+	provider := cfg.AI.Provider
+	if provider == "" {
+		provider = "openai" // Default
+	}
+
+	model := cfg.AI.Model
+	if model == "" {
+		if provider == "openai" {
+			model = "gpt-4"
+		} else if provider == "anthropic" {
+			model = "claude-3-opus-20240229"
+		}
+	}
+
+	timeout := cfg.AI.Timeout
+	if timeout == 0 {
+		timeout = 60 // Default 60 seconds
+	}
+
+	// Build AIConfig (internal AI package config)
+	aiConfig := ai.AIConfig{
+		Provider:     provider,
+		Enabled:      true,
+		Model:        model,
+		Timeout:      timeout,
+		RateLimit:    cfg.AI.RateLimit,
+		OpenAIKey:    cfg.AI.OpenAIKey,
+		AnthropicKey: cfg.AI.AnthropicKey,
+	}
+
+	// Override with environment variables if not set
+	if aiConfig.OpenAIKey == "" {
+		aiConfig.OpenAIKey = os.Getenv("SDEK_OPENAI_KEY")
+	}
+	if aiConfig.AnthropicKey == "" {
+		aiConfig.AnthropicKey = os.Getenv("SDEK_ANTHROPIC_KEY")
+	}
+
+	// Set defaults
+	if aiConfig.MaxTokens == 0 {
+		aiConfig.MaxTokens = 4096
+	}
+	if aiConfig.Temperature == 0 {
+		aiConfig.Temperature = 0.3
+	}
+	if aiConfig.RateLimit == 0 {
+		aiConfig.RateLimit = 10
+	}
+
+	// Validate API keys
+	if provider == "openai" && aiConfig.OpenAIKey == "" {
+		return nil, fmt.Errorf("OpenAI API key required - set SDEK_OPENAI_KEY or configure in config.yaml")
+	}
+	if provider == "anthropic" && aiConfig.AnthropicKey == "" {
+		return nil, fmt.Errorf("Anthropic API key required - set SDEK_ANTHROPIC_KEY or configure in config.yaml")
+	}
+
+	// Create engine based on provider
+	var engine ai.Engine
+	var err error
+
+	switch provider {
+	case "openai":
+		engine, err = providers.NewOpenAIEngine(aiConfig)
+	case "anthropic":
+		engine, err = providers.NewAnthropicEngine(aiConfig)
+	default:
+		return nil, fmt.Errorf("unsupported AI provider: %s", provider)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AI engine: %w", err)
+	}
+
+	return engine, nil
+}
+
+// exportFinding saves the finding to a JSON file
+func exportFinding(finding *types.Finding, outputPath string) error {
+	data, err := json.MarshalIndent(finding, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal finding: %w", err)
+	}
+
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return nil
+}
+
+// displayFindingSummary shows a summary of the finding to the user
+func displayFindingSummary(finding *types.Finding, outputFile string) {
+	fmt.Println("\n✅ Analysis Complete!")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Printf("Framework:       %s\n", finding.FrameworkID)
+	fmt.Printf("Control:         %s\n", finding.ControlID)
+	fmt.Printf("Confidence:      %.1f%%\n", finding.ConfidenceScore*100)
+	fmt.Printf("Residual Risk:   %s\n", finding.ResidualRisk)
+
+	if finding.ReviewRequired {
+		fmt.Println("⚠️  Review Required: Low confidence score")
+	}
+
+	fmt.Printf("\nMapped Controls: %d\n", len(finding.MappedControls))
+	if len(finding.MappedControls) > 0 {
+		for _, ctrl := range finding.MappedControls {
+			fmt.Printf("  - %s\n", ctrl)
+		}
+	}
+
+	fmt.Printf("\nCitations:       %d\n", len(finding.Citations))
+	if len(finding.Citations) > 0 && len(finding.Citations) <= 5 {
+		for _, cite := range finding.Citations {
+			fmt.Printf("  - %s\n", cite)
+		}
+	} else if len(finding.Citations) > 5 {
+		fmt.Printf("  (showing first 5 of %d)\n", len(finding.Citations))
+		for i := 0; i < 5; i++ {
+			fmt.Printf("  - %s\n", finding.Citations[i])
+		}
+	}
+
+	fmt.Printf("\nJustification:\n%s\n", finding.Justification)
+
+	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Printf("📄 Finding saved to: %s\n", outputFile)
 }
 
 func init() {
