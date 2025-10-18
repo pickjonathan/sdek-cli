@@ -202,8 +202,7 @@ func (cl *ConfigLoader) WriteConfig(config *types.Config) error {
 
 	// Feature 003: Autonomous mode settings
 	cl.v.Set("ai.autonomous.enabled", config.AI.Autonomous.Enabled)
-	cl.v.Set("ai.autonomous.autoApprove.enabled", config.AI.Autonomous.AutoApprove.Enabled)
-	cl.v.Set("ai.autonomous.autoApprove.rules", config.AI.Autonomous.AutoApprove.Rules)
+	cl.v.Set("ai.autonomous.autoApprove", config.AI.Autonomous.AutoApprove)
 
 	// Feature 003: Redaction settings
 	cl.v.Set("ai.redaction.enabled", config.AI.Redaction.Enabled)

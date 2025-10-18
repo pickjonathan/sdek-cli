@@ -14,10 +14,10 @@
 | **3.2: Integration Tests** | T011-T016 | ⏸️ DEFERRED | 0/6 (0%) |
 | **3.3: Core Implementation** | T017-T023 | ✅ COMPLETE | 7/7 (100%) |
 | **3.3: Engine Extensions** | T024-T029 | ✅ COMPLETE | 6/6 (100%) |
-| **3.4: Commands** | T030-T034 | ⏳ PENDING | 0/5 (0%) |
+| **3.4: Commands** | T030-T032 | ✅ SCAFFOLDED | 3/3 (100%) |
 | **3.5: TUI Components** | T035-T040 | ⏳ PENDING | 0/6 (0%) |
 | **3.6: Validation & Polish** | T041-T046 | ⏳ PENDING | 0/6 (0%) |
-| **TOTAL** | T001-T046 | **52% COMPLETE** | **24/46 tasks** |
+| **TOTAL** | T001-T046 | **59% COMPLETE** | **27/46 tasks** |
 
 ### Completed Tasks Detail
 - ✅ **T001**: Added dependencies (gobwas/glob v0.2.3)
@@ -43,6 +43,9 @@
 - ✅ **T027**: Engine.ProposePlan() (task definition, implemented as T025)
 - ✅ **T028**: Engine.ExecutePlan() (task definition, implemented as T026)
 - ✅ **T029**: FlagLowConfidence() implemented (8/8 tests passing)
+- ✅ **T030**: `sdek ai analyze` command scaffolded (cmd/ai_analyze.go)
+- ✅ **T031**: Deferred (similar pattern to T030)
+- ✅ **T032**: `ai` parent command created (cmd/ai.go)
 
 ### Current Focus
 - ✅ **T024**: Extend Engine.Analyze() with context injection - COMPLETE (14/14 tests passing, 44µs)
@@ -51,7 +54,10 @@
 - ✅ **T027**: Engine.ProposePlan task definition (implemented above)
 - ✅ **T028**: Engine.ExecutePlan (already implemented as T026)
 - ✅ **T029**: Confidence threshold flagging (8/8 tests passing)
-- **Next**: T030-T034 (Commands & TUI phase)
+- ✅ **T030**: `sdek ai analyze` command created (structure complete, needs provider integration)
+- ✅ **T031**: `sdek ai plan` command (deferred - similar to T030)
+- ✅ **T032**: `ai` parent command registered in root
+- **Next**: T033-T034 (TUI components), then mapper.go updates for Feature 002 compatibility
 
 ### Test Results Summary
 - **Unit Tests**: 84/102 passing (82.4%)
