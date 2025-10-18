@@ -112,9 +112,66 @@ func NewEngineWithConnector(cfg *types.Config, provider Provider, connector MCPC
 }
 
 // AnalyzeWithRequest implements the Engine interface (legacy method from Feature 002)
+// This maintains backward compatibility by adapting to the new Feature 003 interface
 func (e *engineImpl) AnalyzeWithRequest(ctx context.Context, req *AnalysisRequest) (*AnalysisResponse, error) {
-	// Legacy implementation - not used in Feature 003
-	return nil, fmt.Errorf("legacy AnalyzeWithRequest method not implemented - use Analyze with ContextPreamble")
+	if req == nil {
+		return nil, ErrInvalidRequest
+	}
+
+	// Convert AnalysisRequest to Feature 003 format
+	// Build ContextPreamble from request
+	preamble, err := types.NewContextPreamble(
+		req.Framework,
+		"", // Version not available in old format
+		req.ControlID,
+		req.PolicyExcerpt,
+		nil, // Related sections not available
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create preamble: %w", err)
+	}
+
+	// Convert AnalysisEvents to EvidenceEvents
+	events := make([]types.EvidenceEvent, len(req.Events))
+	for i, evt := range req.Events {
+		events[i] = types.EvidenceEvent{
+			ID:        evt.EventID,
+			Source:    evt.Source,
+			Type:      evt.EventType,
+			Timestamp: evt.Timestamp,
+			Content:   evt.Content,
+			Metadata: map[string]interface{}{
+				"description": evt.Description,
+			},
+		}
+	}
+
+	evidence := types.EvidenceBundle{
+		Events: events,
+	}
+
+	// Call new Feature 003 Analyze method
+	finding, err := e.Analyze(ctx, *preamble, evidence)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert Finding back to AnalysisResponse
+	response := &AnalysisResponse{
+		RequestID:     req.RequestID,
+		EvidenceLinks: finding.Citations,
+		Justification: finding.Justification,
+		Confidence:    int(finding.ConfidenceScore * 100), // Convert 0-1 to 0-100
+		ResidualRisk:  string(finding.ResidualRisk),
+		Provider:      e.config.AI.Provider,
+		Model:         e.config.AI.Model,
+		TokensUsed:    0, // Not tracked in Feature 003
+		Latency:       0, // Not tracked in Feature 003
+		Timestamp:     time.Now(),
+		CacheHit:      false, // Cache hit detection would need to be added
+	}
+
+	return response, nil
 }
 
 // Provider returns the provider name

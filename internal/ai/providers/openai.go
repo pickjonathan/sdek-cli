@@ -8,6 +8,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/pickjonathan/sdek-cli/internal/ai"
+	"github.com/pickjonathan/sdek-cli/pkg/types"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -33,8 +34,8 @@ func NewOpenAIEngine(config ai.AIConfig) (*OpenAIEngine, error) {
 	}, nil
 }
 
-// Analyze implements ai.Engine.Analyze
-func (e *OpenAIEngine) Analyze(ctx context.Context, req *ai.AnalysisRequest) (*ai.AnalysisResponse, error) {
+// AnalyzeWithRequest implements ai.Engine.AnalyzeWithRequest (Feature 002 backward compatibility)
+func (e *OpenAIEngine) AnalyzeWithRequest(ctx context.Context, req *ai.AnalysisRequest) (*ai.AnalysisResponse, error) {
 	// Validate request
 	if err := e.validateRequest(req); err != nil {
 		return nil, err
@@ -63,6 +64,24 @@ func (e *OpenAIEngine) Analyze(ctx context.Context, req *ai.AnalysisRequest) (*a
 
 	response.Latency = latency
 	return response, nil
+}
+
+// Analyze implements ai.Engine.Analyze (Feature 003)
+// This is a stub that returns an error - OpenAI provider needs Feature 003 implementation
+func (e *OpenAIEngine) Analyze(ctx context.Context, preamble types.ContextPreamble, evidence types.EvidenceBundle) (*types.Finding, error) {
+	return nil, fmt.Errorf("Feature 003 not yet implemented for OpenAI provider - use AnalyzeWithRequest for now")
+}
+
+// ProposePlan implements ai.Engine.ProposePlan (Feature 003)
+// This is a stub that returns an error - OpenAI provider needs Feature 003 implementation
+func (e *OpenAIEngine) ProposePlan(ctx context.Context, preamble types.ContextPreamble) (*types.EvidencePlan, error) {
+	return nil, fmt.Errorf("Feature 003 not yet implemented for OpenAI provider")
+}
+
+// ExecutePlan implements ai.Engine.ExecutePlan (Feature 003)
+// This is a stub that returns an error - OpenAI provider needs Feature 003 implementation
+func (e *OpenAIEngine) ExecutePlan(ctx context.Context, plan *types.EvidencePlan) (*types.EvidenceBundle, error) {
+	return nil, fmt.Errorf("Feature 003 not yet implemented for OpenAI provider")
 }
 
 // Provider implements ai.Engine.Provider

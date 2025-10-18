@@ -10,6 +10,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/pickjonathan/sdek-cli/internal/ai"
+	"github.com/pickjonathan/sdek-cli/pkg/types"
 )
 
 // AnthropicEngine implements ai.Engine using Anthropic's API
@@ -36,8 +37,8 @@ func NewAnthropicEngine(config ai.AIConfig) (*AnthropicEngine, error) {
 	}, nil
 }
 
-// Analyze implements ai.Engine.Analyze
-func (e *AnthropicEngine) Analyze(ctx context.Context, req *ai.AnalysisRequest) (*ai.AnalysisResponse, error) {
+// AnalyzeWithRequest implements ai.Engine.AnalyzeWithRequest (Feature 002 backward compatibility)
+func (e *AnthropicEngine) AnalyzeWithRequest(ctx context.Context, req *ai.AnalysisRequest) (*ai.AnalysisResponse, error) {
 	// Validate request
 	if err := e.validateRequest(req); err != nil {
 		return nil, err
@@ -66,6 +67,24 @@ func (e *AnthropicEngine) Analyze(ctx context.Context, req *ai.AnalysisRequest) 
 
 	response.Latency = latency
 	return response, nil
+}
+
+// Analyze implements ai.Engine.Analyze (Feature 003)
+// This is a stub that returns an error - Anthropic provider needs Feature 003 implementation
+func (e *AnthropicEngine) Analyze(ctx context.Context, preamble types.ContextPreamble, evidence types.EvidenceBundle) (*types.Finding, error) {
+	return nil, fmt.Errorf("Feature 003 not yet implemented for Anthropic provider - use AnalyzeWithRequest for now")
+}
+
+// ProposePlan implements ai.Engine.ProposePlan (Feature 003)
+// This is a stub that returns an error - Anthropic provider needs Feature 003 implementation
+func (e *AnthropicEngine) ProposePlan(ctx context.Context, preamble types.ContextPreamble) (*types.EvidencePlan, error) {
+	return nil, fmt.Errorf("Feature 003 not yet implemented for Anthropic provider")
+}
+
+// ExecutePlan implements ai.Engine.ExecutePlan (Feature 003)
+// This is a stub that returns an error - Anthropic provider needs Feature 003 implementation
+func (e *AnthropicEngine) ExecutePlan(ctx context.Context, plan *types.EvidencePlan) (*types.EvidenceBundle, error) {
+	return nil, fmt.Errorf("Feature 003 not yet implemented for Anthropic provider")
 }
 
 // Provider implements ai.Engine.Provider
