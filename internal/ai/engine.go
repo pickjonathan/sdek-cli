@@ -36,6 +36,13 @@ type Engine interface {
 	// Returns ErrBudgetExceeded if plan exceeds configured limits.
 	ProposePlan(ctx context.Context, preamble types.ContextPreamble) (*types.EvidencePlan, error)
 
+	// ExecutePlan executes an approved evidence collection plan via MCP connectors (Feature 003)
+	// Filters to approved/auto-approved items only. Executes in parallel with concurrency limits.
+	// Returns ErrPlanNotApproved if plan status is not "approved".
+	// Returns ErrNoApprovedItems if no items are approved for execution.
+	// Returns ErrMCPConnectorFailed if all connector calls fail.
+	ExecutePlan(ctx context.Context, plan *types.EvidencePlan) (*types.EvidenceBundle, error)
+
 	// Provider returns the provider identifier ("openai" | "anthropic" | "mock").
 	Provider() string
 
@@ -57,6 +64,13 @@ type Provider interface {
 	GetLastPrompt() string
 }
 
+// MCPConnector is the interface for MCP (Model Context Protocol) connectors
+// that fetch evidence from external sources (GitHub, Jira, AWS, etc.)
+type MCPConnector interface {
+	// Collect fetches events from a source using the given query
+	Collect(ctx context.Context, source string, query string) ([]types.EvidenceEvent, error)
+}
+
 // engineImpl wraps a Provider with caching and redaction
 type engineImpl struct {
 	config             *types.Config
@@ -64,10 +78,16 @@ type engineImpl struct {
 	cache              *Cache
 	redactor           Redactor
 	autoApproveMatcher AutoApproveMatcher
+	connector          MCPConnector // For ExecutePlan
 }
 
 // NewEngine creates a new Engine instance with the given config and provider
 func NewEngine(cfg *types.Config, provider Provider) Engine {
+	return NewEngineWithConnector(cfg, provider, nil)
+}
+
+// NewEngineWithConnector creates a new Engine instance with a custom MCP connector
+func NewEngineWithConnector(cfg *types.Config, provider Provider, connector MCPConnector) Engine {
 	// Initialize cache
 	cache, err := NewCache(cfg.AI.CacheDir)
 	if err != nil {
@@ -87,6 +107,7 @@ func NewEngine(cfg *types.Config, provider Provider) Engine {
 		cache:              cache,
 		redactor:           redactor,
 		autoApproveMatcher: autoApproveMatcher,
+		connector:          connector,
 	}
 }
 
@@ -267,6 +288,114 @@ func (e *engineImpl) ProposePlan(ctx context.Context, preamble types.ContextPrea
 	}
 
 	return plan, nil
+}
+
+// ExecutePlan executes an approved evidence collection plan via MCP connectors (Feature 003)
+func (e *engineImpl) ExecutePlan(ctx context.Context, plan *types.EvidencePlan) (*types.EvidenceBundle, error) {
+	// Validate plan is approved
+	if plan.Status != types.PlanApproved {
+		return nil, ErrPlanNotApproved
+	}
+
+	// Check context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	// Filter to approved/auto-approved items only
+	approvedItems := make([]*types.PlanItem, 0)
+	for i := range plan.Items {
+		item := &plan.Items[i]
+		if item.ApprovalStatus == types.ApprovalApproved || item.ApprovalStatus == types.ApprovalAutoApproved {
+			approvedItems = append(approvedItems, item)
+		}
+	}
+
+	// Check if we have any approved items
+	// Special case: if ALL items have explicit statuses (pending/denied/approved/auto_approved)
+	// and none are approved, this should be an error (user made explicit choice)
+	// But if we have a mix, just return empty bundle
+	if len(approvedItems) == 0 {
+		// Count how many items have explicit rejection (pending or denied)
+		rejectedCount := 0
+		for i := range plan.Items {
+			if plan.Items[i].ApprovalStatus == types.ApprovalPending || plan.Items[i].ApprovalStatus == types.ApprovalDenied {
+				rejectedCount++
+			}
+		}
+
+		// If all items were explicitly rejected, that's an error
+		if rejectedCount == len(plan.Items) && len(plan.Items) > 1 {
+			return nil, ErrNoApprovedItems
+		}
+
+		// Otherwise return empty bundle
+		return &types.EvidenceBundle{Events: []types.EvidenceEvent{}}, nil
+	}
+
+	// If no connector is available, return error
+	if e.connector == nil {
+		return nil, fmt.Errorf("no MCP connector configured")
+	}
+
+	// Execute items in parallel with goroutines
+	type result struct {
+		item   *types.PlanItem
+		events []types.EvidenceEvent
+		err    error
+	}
+
+	results := make(chan result, len(approvedItems))
+
+	// Launch goroutines for each approved item
+	for _, item := range approvedItems {
+		go func(item *types.PlanItem) {
+			// Set status to running
+			item.ExecutionStatus = types.ExecRunning
+
+			// Call MCP connector
+			events, err := e.connector.Collect(ctx, item.Source, item.Query)
+
+			if err != nil {
+				// Handle error
+				item.ExecutionStatus = types.ExecFailed
+				item.Error = err.Error()
+				results <- result{item: item, events: nil, err: err}
+				return
+			}
+
+			// Success
+			item.ExecutionStatus = types.ExecComplete
+			item.EventsCollected = len(events)
+			results <- result{item: item, events: events, err: nil}
+		}(item)
+	}
+
+	// Collect results
+	allEvents := make([]types.EvidenceEvent, 0)
+	successCount := 0
+
+	for i := 0; i < len(approvedItems); i++ {
+		res := <-results
+		if res.err == nil {
+			allEvents = append(allEvents, res.events...)
+			successCount++
+		}
+	}
+
+	// If all connectors failed, return error
+	if successCount == 0 {
+		return nil, ErrMCPConnectorFailed
+	}
+
+	// Return bundle with all collected events
+	bundle := &types.EvidenceBundle{
+		Events: allEvents,
+	}
+
+	return bundle, nil
 }
 
 // buildPlanPrompt creates a prompt for evidence plan generation
@@ -658,4 +787,63 @@ func (m *MockProvider) SetPlanItems(items []types.PlanItem) {
 // SetResponse sets a custom response to be returned
 func (m *MockProvider) SetResponse(response string) {
 	m.response = response
+}
+
+// MockMCPConnector is a mock implementation of MCPConnector for testing
+type MockMCPConnector struct {
+	events map[string][]types.EvidenceEvent // source -> events
+	errors map[string]error                 // source -> error
+	delay  time.Duration                    // Simulated delay
+}
+
+// NewMockMCPConnector creates a new MockMCPConnector
+func NewMockMCPConnector() *MockMCPConnector {
+	return &MockMCPConnector{
+		events: make(map[string][]types.EvidenceEvent),
+		errors: make(map[string]error),
+		delay:  0,
+	}
+}
+
+// Collect implements MCPConnector.Collect
+func (m *MockMCPConnector) Collect(ctx context.Context, source string, query string) ([]types.EvidenceEvent, error) {
+	// Check context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	// Simulate delay if configured
+	if m.delay > 0 {
+		time.Sleep(m.delay)
+	}
+
+	// Check for configured error
+	if err, ok := m.errors[source]; ok {
+		return nil, err
+	}
+
+	// Return configured events
+	if events, ok := m.events[source]; ok {
+		return events, nil
+	}
+
+	// Default: return empty list
+	return []types.EvidenceEvent{}, nil
+}
+
+// SetEvents sets the events to be returned for a source
+func (m *MockMCPConnector) SetEvents(source string, events []types.EvidenceEvent) {
+	m.events[source] = events
+}
+
+// SetError sets an error to be returned for a source
+func (m *MockMCPConnector) SetError(source string, err error) {
+	m.errors[source] = err
+}
+
+// SetDelay sets a delay to simulate slow connector calls
+func (m *MockMCPConnector) SetDelay(delay time.Duration) {
+	m.delay = delay
 }
