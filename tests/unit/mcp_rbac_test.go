@@ -5,52 +5,53 @@ import (
 	"testing"
 
 	"github.com/pickjonathan/sdek-cli/internal/mcp/rbac"
+	"github.com/pickjonathan/sdek-cli/pkg/types"
 )
 
 func TestRBACCheckPermissionExactMatch(t *testing.T) {
 	enforcer := rbac.NewEnforcer()
 	ctx := context.Background()
-	
-	agent := rbac.Agent{
-		ID:   "test-agent",
-		Role: "evidence-collector",
-	}
-	
+
+	agentRole := "evidence-collector"
+
 	// Assume role has capability "github.commits.list"
-	err := enforcer.CheckPermission(ctx, agent, "github", "commits.list")
+	allowed, err := enforcer.CheckPermission(ctx, agentRole, "github.commits.list")
 	if err != nil {
-		t.Errorf("expected permission granted for exact capability match, got: %v", err)
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !allowed {
+		t.Error("expected permission granted for exact capability match")
 	}
 }
 
 func TestRBACCheckPermissionWildcard(t *testing.T) {
 	enforcer := rbac.NewEnforcer()
 	ctx := context.Background()
-	
-	agent := rbac.Agent{
-		ID:   "test-agent",
-		Role: "admin",
-	}
-	
+
+	agentRole := "admin"
+
 	// Assume admin role has capability "github.*"
-	err := enforcer.CheckPermission(ctx, agent, "github", "any.method")
+	allowed, err := enforcer.CheckPermission(ctx, agentRole, "github.any.method")
 	if err != nil {
-		t.Errorf("expected permission granted for wildcard match, got: %v", err)
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !allowed {
+		t.Error("expected permission granted for wildcard match")
 	}
 }
 
 func TestRBACCheckPermissionDenied(t *testing.T) {
 	enforcer := rbac.NewEnforcer()
 	ctx := context.Background()
-	
-	agent := rbac.Agent{
-		ID:   "test-agent",
-		Role: "read-only",
-	}
-	
+
+	agentRole := "read-only"
+
 	// Assume read-only doesn't have write capabilities
-	err := enforcer.CheckPermission(ctx, agent, "github", "pr.create")
-	if err == nil {
+	allowed, err := enforcer.CheckPermission(ctx, agentRole, "github.pr.create")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if allowed {
 		t.Error("expected permission denied for missing capability")
 	}
 }
@@ -58,13 +59,20 @@ func TestRBACCheckPermissionDenied(t *testing.T) {
 func TestRBACBudgetRateLimitEnforcement(t *testing.T) {
 	enforcer := rbac.NewEnforcer()
 	ctx := context.Background()
-	
+
+	budget := &types.ToolBudget{
+		ToolName:         "test-tool",
+		RateLimit:        types.RateLimit{RequestsPerSecond: 10, BurstSize: 20},
+		ConcurrencyLimit: 5,
+		DailyQuota:       1000,
+	}
+
 	// Apply rate limit for a tool
-	err := enforcer.ApplyBudget(ctx, "test-tool")
+	err := enforcer.ApplyBudget(ctx, "test-tool", budget)
 	if err != nil {
 		t.Errorf("first request should be allowed: %v", err)
 	}
-	
+
 	// Rapidly exhaust rate limit
 	// ...
 }

@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// mcpTestCmd tests an MCP tool connection
-var mcpTestCmd = &cobra.Command{
+// mcpCheckCmd tests an MCP tool connection
+var mcpCheckCmd = &cobra.Command{
 	Use:   "test <tool-name>",
 	Short: "Test an MCP tool connection",
 	Long: `Test an MCP tool connection and display diagnostic information.
@@ -77,5 +77,5 @@ Use this to troubleshoot connectivity issues or verify a tool is working correct
 }
 
 func init() {
-	mcpCmd.AddCommand(mcpTestCmd)
+	mcpCmd.AddCommand(mcpCheckCmd)
 }

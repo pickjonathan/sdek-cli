@@ -56,7 +56,7 @@ func (m MCPToolsModel) Init() tea.Cmd {
 func (m MCPToolsModel) loadTools() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
-		
+
 		// Initialize registry
 		if _, err := m.registry.Init(ctx); err != nil {
 			return mcpToolsLoadedMsg{err: err}
@@ -76,7 +76,7 @@ func (m MCPToolsModel) loadTools() tea.Cmd {
 func (m MCPToolsModel) testTool(toolName string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
-		
+
 		report, err := m.registry.Test(ctx, toolName)
 		var reportPtr *types.MCPHealthReport
 		if err == nil {
@@ -212,7 +212,7 @@ func (m MCPToolsModel) renderToolsTable() string {
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(styles.PrimaryColor))
-	
+
 	nameWidth := 20
 	statusWidth := 12
 	latencyWidth := 10
@@ -242,7 +242,7 @@ func (m MCPToolsModel) renderToolsTable() string {
 
 		// Status badge
 		statusBadge := RenderStatusBadge(tool)
-		
+
 		// Latency
 		latency := "─"
 		if tool.Metrics.HandshakeLatency > 0 {

@@ -8,17 +8,17 @@ import (
 )
 
 func TestRegistryInitDiscoversConfigs(t *testing.T) {
-	tmpDir := t.TempDir()
+	_ = t.TempDir() // tmpDir reserved for future test config setup
 	// Setup test configs in tmpDir/.sdek/mcp/
-	
+
 	registry := mcp.NewRegistry()
 	ctx := context.Background()
-	
+
 	count, err := registry.Init(ctx)
 	if err != nil {
 		t.Fatalf("registry init failed: %v", err)
 	}
-	
+
 	if count == 0 {
 		t.Error("expected at least one tool to be discovered")
 	}
@@ -31,10 +31,10 @@ func TestRegistryAsyncHandshake(t *testing.T) {
 func TestRegistryCloseWaitsForInflight(t *testing.T) {
 	registry := mcp.NewRegistry()
 	ctx := context.Background()
-	
+
 	// Start some invocations
 	// ...
-	
+
 	err := registry.Close(ctx)
 	if err != nil {
 		t.Errorf("registry close failed: %v", err)
@@ -43,26 +43,26 @@ func TestRegistryCloseWaitsForInflight(t *testing.T) {
 
 func TestRegistryReloadHotReloadsChangedConfigs(t *testing.T) {
 	registry := mcp.NewRegistry()
-	
+
 	ctx := context.Background()
 	count, err := registry.Reload(ctx)
-	
+
 	if err != nil {
 		t.Errorf("registry reload failed: %v", err)
 	}
-	
+
 	_ = count // Check count reflects reloaded tools
 }
 
 func TestRegistryListReturnsAllTools(t *testing.T) {
 	registry := mcp.NewRegistry()
 	ctx := context.Background()
-	
+
 	tools, err := registry.List(ctx)
 	if err != nil {
 		t.Errorf("registry list failed: %v", err)
 	}
-	
+
 	if tools == nil {
 		t.Error("expected non-nil tools list")
 	}
@@ -71,7 +71,7 @@ func TestRegistryListReturnsAllTools(t *testing.T) {
 func TestRegistryGetRetrievesTool(t *testing.T) {
 	registry := mcp.NewRegistry()
 	ctx := context.Background()
-	
+
 	_, err := registry.Get(ctx, "nonexistent-tool")
 	if err != mcp.ErrToolNotFound {
 		t.Errorf("expected ErrToolNotFound, got: %v", err)
@@ -81,7 +81,7 @@ func TestRegistryGetRetrievesTool(t *testing.T) {
 func TestRegistryEnableTransitionsToolToReady(t *testing.T) {
 	registry := mcp.NewRegistry()
 	ctx := context.Background()
-	
+
 	err := registry.Enable(ctx, "test-tool")
 	if err == nil {
 		// Success expected if tool exists
@@ -91,7 +91,7 @@ func TestRegistryEnableTransitionsToolToReady(t *testing.T) {
 func TestRegistryDisableTransitionsToolToOffline(t *testing.T) {
 	registry := mcp.NewRegistry()
 	ctx := context.Background()
-	
+
 	err := registry.Disable(ctx, "test-tool")
 	if err == nil {
 		// Success expected if tool exists
@@ -105,23 +105,23 @@ func TestRegistryDisabledToolRejectsInvocations(t *testing.T) {
 func TestRegistryValidateChecksSchema(t *testing.T) {
 	registry := mcp.NewRegistry()
 	ctx := context.Background()
-	
+
 	errors, err := registry.Validate(ctx, "/path/to/invalid.json")
 	if err != nil {
 		t.Fatalf("validate call failed: %v", err)
 	}
-	
+
 	_ = errors // Check for schema errors
 }
 
 func TestRegistryTestPerformsHealthCheck(t *testing.T) {
 	registry := mcp.NewRegistry()
 	ctx := context.Background()
-	
+
 	report, err := registry.Test(ctx, "test-tool")
 	if err != nil {
 		// Error expected for nonexistent tool
 	}
-	
+
 	_ = report // Check health report structure
 }

@@ -112,7 +112,7 @@ func (m HomeModel) renderSummary() string {
 		"  ",
 		controlsCard,
 	)
-	
+
 	row2 := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		evidenceCard,
