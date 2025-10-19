@@ -637,3 +637,26 @@ Task: "Update README.md with MCP quickstart"
 **TOTAL TASKS**: 64 tasks across 5 milestones (M1-M5)
 **ESTIMATED COMPLETION**: 3-4 weeks (assuming 3-5 tasks per day)
 **READY FOR EXECUTION**: ✅ Yes - All prerequisites met, tasks ordered by dependencies
+
+---
+
+## Implementation Notes
+
+### AWS MCP Configuration (2025-10-19)
+✅ **Test Configuration Created**: `~/.sdek/mcp/aws.json`
+- Using official `awslabs.aws-api-mcp-server@latest` package
+- Transport: stdio (JSON-RPC over stdin/stdout)
+- Command: `uvx awslabs.aws-api-mcp-server@latest`
+- Security: `READ_OPERATIONS_ONLY=true` (read-only mode for safety)
+- Region: `us-east-1`
+- Capabilities: EC2, S3, Lambda, IAM, CloudFormation, RDS, DynamoDB, CloudWatch
+
+**Prerequisites Verified**:
+- ✅ uvx installed at `/opt/homebrew/bin/uvx`
+- ✅ AWS credentials configured at `~/.aws/credentials`
+- ✅ MCP server package downloads and starts successfully
+- ✅ Configuration validates against MCPConfig schema
+
+**Documentation**: See `AWS_MCP_TEST_RESULTS.md` in repository root
+
+This configuration will be used to test the Registry implementation once T043-T047 are complete.
