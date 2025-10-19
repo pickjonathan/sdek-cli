@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0.0",
+  "name": "github",
+  "description": "GitHub API integration for code commits, pull requests, and issues",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-github"
+  ],
+  "transport": "stdio",
+  "env": {
+    "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+    "GITHUB_OWNER": "${GITHUB_OWNER}",
+    "GITHUB_REPO": "${GITHUB_REPO}"
+  },
+  "capabilities": [
+    "github.commits.list",
+    "github.commits.get",
+    "github.pulls.list",
+    "github.pulls.get",
+    "github.issues.list",
+    "github.issues.get",
+    "github.issues.create",
+    "github.branches.list",
+    "github.tags.list",
+    "github.releases.list",
+    "github.search.code",
+    "github.search.commits"
+  ],
+  "timeout": "30s",
+  "retryPolicy": {
+    "maxAttempts": 3,
+    "backoff": "exponential"
+  },
+  "metadata": {
+    "category": "version-control",
+    "documentation": "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
+    "setup": [
+      "1. Create a GitHub Personal Access Token at https://github.com/settings/tokens",
+      "2. Set environment variables: GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO",
+      "3. Grant token appropriate scopes: repo, read:org"
+    ]
+  }
+}

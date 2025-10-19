@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0.0",
+  "name": "jira",
+  "description": "Jira API integration for issues, projects, and workflows",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-jira"
+  ],
+  "transport": "stdio",
+  "env": {
+    "JIRA_HOST": "${JIRA_HOST}",
+    "JIRA_EMAIL": "${JIRA_EMAIL}",
+    "JIRA_API_TOKEN": "${JIRA_API_TOKEN}"
+  },
+  "capabilities": [
+    "jira.issues.list",
+    "jira.issues.get",
+    "jira.issues.create",
+    "jira.issues.update",
+    "jira.issues.search",
+    "jira.projects.list",
+    "jira.projects.get",
+    "jira.sprints.list",
+    "jira.sprints.get",
+    "jira.boards.list",
+    "jira.users.search"
+  ],
+  "timeout": "30s",
+  "retryPolicy": {
+    "maxAttempts": 3,
+    "backoff": "exponential"
+  },
+  "metadata": {
+    "category": "project-management",
+    "documentation": "https://github.com/modelcontextprotocol/servers/tree/main/src/jira",
+    "setup": [
+      "1. Generate a Jira API Token at https://id.atlassian.com/manage-profile/security/api-tokens",
+      "2. Set environment variables:",
+      "   - JIRA_HOST: your-domain.atlassian.net",
+      "   - JIRA_EMAIL: your email",
+      "   - JIRA_API_TOKEN: generated token",
+      "3. Ensure API token has appropriate project permissions"
+    ]
+  }
+}

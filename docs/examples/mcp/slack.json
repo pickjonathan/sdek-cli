@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0.0",
+  "name": "slack",
+  "description": "Slack API integration for messages, channels, and user data",
+  "command": "npx",
+  "args": [
+    "-y",
+    "@modelcontextprotocol/server-slack"
+  ],
+  "transport": "stdio",
+  "env": {
+    "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+    "SLACK_TEAM_ID": "${SLACK_TEAM_ID}"
+  },
+  "capabilities": [
+    "slack.messages.list",
+    "slack.messages.get",
+    "slack.messages.search",
+    "slack.channels.list",
+    "slack.channels.info",
+    "slack.channels.history",
+    "slack.users.list",
+    "slack.users.info",
+    "slack.conversations.list",
+    "slack.conversations.history"
+  ],
+  "timeout": "30s",
+  "retryPolicy": {
+    "maxAttempts": 3,
+    "backoff": "exponential"
+  },
+  "metadata": {
+    "category": "communication",
+    "documentation": "https://github.com/modelcontextprotocol/servers/tree/main/src/slack",
+    "setup": [
+      "1. Create a Slack App at https://api.slack.com/apps",
+      "2. Add Bot Token Scopes: channels:read, channels:history, users:read, chat:write",
+      "3. Install app to workspace",
+      "4. Set environment variables: SLACK_BOT_TOKEN, SLACK_TEAM_ID"
+    ]
+  }
+}

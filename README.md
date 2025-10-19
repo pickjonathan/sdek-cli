@@ -289,6 +289,12 @@ See [AI-Enhanced Evidence Analysis](#ai-enhanced-evidence-analysis) below for co
 - 🔄 **Multi-source ingestion**: Git commits, Jira tickets, Slack messages, CI/CD pipelines, Documentation
 - 📊 **Framework mapping**: SOC 2, ISO 27001, PCI DSS with 124 controls
 - 🎯 **Evidence analysis**: Automatic evidence-to-control mapping with confidence scores
+- 🔌 **MCP Integration**: Model Context Protocol support for extensible evidence collection
+  - **Unified Protocol**: Connect to any MCP-compatible tool (GitHub, Slack, Jira, AWS, etc.)
+  - **Auto-discovery**: Load configurations from project, user, or custom directories
+  - **Health Monitoring**: Real-time status tracking with latency and error metrics
+  - **TUI Management**: Visual panel for testing and managing MCP tools
+  - **RBAC & Budgets**: Fine-grained permission controls and rate limiting per tool
 - 🤖 **AI-Powered Analysis**: Context injection for policy-grounded compliance insights
   - **Context Injection**: Ground AI analysis in exact framework control language
   - **Privacy-First**: Mandatory PII/secret redaction before sending to AI providers
@@ -364,6 +370,43 @@ Navigate with:
 # Generate interactive HTML dashboard
 ./sdek html --input ~/compliance-report.json --output ~/dashboard.html
 ```
+
+### 4. Using MCP Tools (Optional)
+
+MCP (Model Context Protocol) tools extend SDEK's evidence collection capabilities to external services.
+
+**Setup:**
+```bash
+# Copy an example configuration
+mkdir -p ~/.sdek/mcp
+cp docs/examples/mcp/github.json ~/.sdek/mcp/
+
+# Set required environment variables
+export GITHUB_TOKEN="ghp_your_token_here"
+export GITHUB_OWNER="your-org"
+export GITHUB_REPO="your-repo"
+
+# Validate configuration
+./sdek mcp validate ~/.sdek/mcp/github.json
+
+# Test connection
+./sdek mcp test github
+```
+
+**View in TUI:**
+```bash
+./sdek tui
+# Press '5' to navigate to MCP Tools panel
+# View real-time status of all configured tools
+# Press 't' to test a selected tool
+```
+
+**Available Examples:**
+- `github.json` - GitHub commits, PRs, and issues
+- `slack.json` - Slack messages and channels
+- `jira.json` - Jira issues and projects
+
+See [MCP Commands](./docs/commands.md#sdek-mcp) for detailed usage and configuration options.
 
 ## Commands
 

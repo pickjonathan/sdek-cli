@@ -297,6 +297,222 @@ The output HTML file embeds the entire JSON report and renders it dynamically us
 
 ---
 
+### sdek mcp
+
+Manage MCP (Model Context Protocol) tool integrations.
+
+**Usage:**
+```bash
+sdek mcp [command] [flags]
+```
+
+**Description:**
+MCP tools provide programmatic access to external services and data sources through a standard protocol. SDEK uses MCP to gather evidence from GitHub, Jira, AWS, Slack, and other platforms during compliance analysis.
+
+**Configuration Discovery:**
+SDEK automatically discovers MCP tools from these locations (in order of precedence):
+1. Custom path: `$SDEK_MCP_PATH` environment variable
+2. Project-specific: `./.sdek/mcp/` (current directory)
+3. User global: `~/.sdek/mcp/` (home directory)
+
+**Subcommands:**
+
+#### mcp list
+List all configured MCP tools with their status.
+
+```bash
+sdek mcp list [flags]
+```
+
+**Flags:**
+- `-f, --format string` - Output format: `table` (default) or `json`
+
+**Output Columns:**
+- NAME - Tool identifier
+- STATUS - Current health status (online, offline, degraded, unknown)
+- LATENCY - Average response time
+- ERRORS - Error count in last 24 hours
+- CAPABILITIES - Supported operations (truncated)
+- LAST CHECK - Time since last health check
+
+**Example:**
+```bash
+$ sdek mcp list
+NAME     STATUS   LATENCY  ERRORS  CAPABILITIES                          LAST CHECK
+aws-api  online   245ms    0       ec2.describe-instances, s3.list-...  2 minutes ago
+github   online   156ms    0       commits.list, pulls.get, ...         5 minutes ago
+slack    degraded 1.2s     3       messages.send, channels.list         1 minute ago
+
+$ sdek mcp list --format=json
+```
+
+---
+
+#### mcp validate
+Validate MCP configuration files against the schema.
+
+```bash
+sdek mcp validate [file...] [flags]
+```
+
+**Arguments:**
+- `file...` - One or more configuration files to validate (supports glob patterns)
+
+**Example:**
+```bash
+$ sdek mcp validate ~/.sdek/mcp/github.json
+✓ github.json
+
+$ sdek mcp validate ~/.sdek/mcp/*.json
+✓ github.json
+✓ slack.json
+❌ jira.json:
+  Line 5: Missing required field 'capabilities'
+  Line 12: Invalid transport type 'websocket' (must be 'stdio' or 'http')
+```
+
+---
+
+#### mcp test
+Test MCP tool connections and capabilities.
+
+```bash
+sdek mcp test [tool-name] [flags]
+```
+
+**Arguments:**
+- `tool-name` - (Optional) Specific tool to test. If omitted, tests all tools.
+
+**Flags:**
+- `-v, --verbose` - Show detailed diagnostic information
+
+**Example:**
+```bash
+$ sdek mcp test github
+Testing github...
+✓ Connection successful (156ms)
+✓ Capabilities verified: 12 operations
+✓ Authentication valid
+✓ Rate limits: 4876/5000 remaining
+
+Status: online
+
+$ sdek mcp test --verbose
+```
+
+---
+
+#### mcp enable
+Enable a disabled MCP tool.
+
+```bash
+sdek mcp enable <tool-name> [flags]
+```
+
+**Arguments:**
+- `tool-name` - Tool identifier to enable
+
+**Example:**
+```bash
+$ sdek mcp enable github
+✓ Enabled MCP tool: github
+```
+
+---
+
+#### mcp disable
+Disable an MCP tool without removing its configuration.
+
+```bash
+sdek mcp disable <tool-name> [flags]
+```
+
+**Arguments:**
+- `tool-name` - Tool identifier to disable
+
+**Example:**
+```bash
+$ sdek mcp disable aws-api
+✓ Disabled MCP tool: aws-api
+```
+
+---
+
+**Configuration File Format:**
+
+MCP tools are configured using JSON files with the following schema:
+
+```json
+{
+  "schemaVersion": "1.0.0",
+  "name": "github",
+  "description": "GitHub MCP server for accessing commits, PRs, and issues",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-github"],
+  "transport": "stdio",
+  "env": {
+    "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+    "GITHUB_OWNER": "${GITHUB_OWNER}",
+    "GITHUB_REPO": "${GITHUB_REPO}"
+  },
+  "capabilities": [
+    "commits.list",
+    "commits.get",
+    "pulls.list",
+    "pulls.get",
+    "issues.search",
+    "issues.get"
+  ],
+  "timeout": "30s",
+  "retryPolicy": {
+    "maxAttempts": 3,
+    "backoff": "exponential"
+  },
+  "metadata": {
+    "category": "version-control",
+    "documentation": "https://github.com/modelcontextprotocol/servers",
+    "setup": [
+      "Create a GitHub personal access token at: https://github.com/settings/tokens",
+      "Set environment variables: GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO"
+    ]
+  }
+}
+```
+
+**Required Fields:**
+- `schemaVersion` - Must be "1.0.0"
+- `name` - Unique tool identifier (lowercase, alphanumeric, hyphens)
+- `command` - Executable to run (e.g., `npx`, `uvx`, `python`, path to binary)
+- `args` - Array of command arguments
+- `transport` - Communication protocol: `stdio` or `http`
+- `capabilities` - Array of supported operations in `resource.action` format
+
+**Optional Fields:**
+- `description` - Human-readable description
+- `env` - Environment variables (supports `${VAR}` expansion)
+- `timeout` - Request timeout (default: `30s`)
+- `retryPolicy` - Retry configuration
+- `metadata` - Additional information (category, docs, setup instructions)
+
+**Example Configurations:**
+
+See `docs/examples/mcp/` for complete examples:
+- `github.json` - GitHub integration
+- `slack.json` - Slack integration
+- `jira.json` - Jira integration
+
+**TUI Integration:**
+
+The MCP Tools panel in the TUI (`sdek tui`) shows:
+- Real-time status of all configured tools
+- Latency and error metrics
+- Quick-test functionality (press `t` on selected tool)
+- Visual status indicators (🟢 online, 🟡 degraded, 🔴 offline)
+
+Navigate to the MCP Tools panel by pressing `5` in the TUI.
+
+---
+
 ### sdek config
 
 Manage sdek configuration settings.
