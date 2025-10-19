@@ -415,7 +415,9 @@ To verify that the AI is actually using AWS MCP tools for evidence collection:
 ./test_aws_mcp_integration.sh
 ```
 
-See [Testing AWS MCP](./docs/TESTING_AWS_MCP.md) for comprehensive testing guide and troubleshooting.
+**Testing Guides:**
+- **Quick Start**: [How to Verify AWS MCP Usage](./docs/examples/mcp/HOW_TO_VERIFY_AWS_MCP_USAGE.md) - 5-minute verification guide
+- **Comprehensive**: [Testing AWS MCP](./docs/TESTING_AWS_MCP.md) - Full testing documentation with troubleshooting
 
 See [MCP Commands](./docs/commands.md#sdek-mcp) for detailed usage and configuration options.
 

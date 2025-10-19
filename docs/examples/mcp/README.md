@@ -2,6 +2,16 @@
 
 This directory contains example MCP (Model Context Protocol) configuration files for popular integrations.
 
+## Quick Start
+
+**New to MCP testing?** Start here: [How to Verify AWS MCP Usage](./HOW_TO_VERIFY_AWS_MCP_USAGE.md)
+
+This guide shows you exactly how to verify that the AI is using AWS MCP tools for evidence collection, with:
+- Quick 5-indicator checklist
+- Automated test script
+- Debug log patterns to watch for
+- Troubleshooting tips
+
 ## Available Examples
 
 ### GitHub (`github.json`)
