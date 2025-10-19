@@ -1,0 +1,5 @@
+NAME         STATUS   LATENCY    ERRORS  CAPABILITIES                                                    LAST CHECK
+aws-api      online   245ms      0       ec2.describe-instances, s3.list-buckets, s3.get-object, ...    2 minutes ago
+github       online   156ms      0       commits.list, pulls.get, issues.search, branches.list, ...     5 minutes ago
+slack        online   89ms       0       messages.send, channels.list, users.info, ...                  1 minute ago
+jira         online   201ms      0       issues.get, projects.list, sprints.list, boards.list, ...      3 minutes ago

@@ -43,9 +43,9 @@ Each MCP tool requires a JSON configuration file with:
 		// Feature flag check - temporarily disabled for testing
 		// TODO: Fix viper config loading issue
 		/*
-		if !viper.GetBool("features.mcp.enabled") {
-			return fmt.Errorf("MCP feature is not enabled. Enable it in your config with: sdek config set features.mcp.enabled true")
-		}
+			if !viper.GetBool("features.mcp.enabled") {
+				return fmt.Errorf("MCP feature is not enabled. Enable it in your config with: sdek config set features.mcp.enabled true")
+			}
 		*/
 		return nil
 	},

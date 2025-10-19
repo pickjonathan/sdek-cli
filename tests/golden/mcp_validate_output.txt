@@ -1,0 +1,5 @@
+✓ docs/examples/mcp/github.json
+✓ docs/examples/mcp/slack.json
+✓ docs/examples/mcp/jira.json
+
+✓ All configuration files are valid
