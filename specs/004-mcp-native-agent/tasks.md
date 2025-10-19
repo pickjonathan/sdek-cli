@@ -319,11 +319,11 @@ Single project structure (per plan.md):
   - Covers FR-020, FR-021, FR-022
 
 ### Evidence Integration (M4)
-- [ ] **T043** Implement AgentInvoker interface in internal/mcp/invoker.go
+- [X] **T043** Implement AgentInvoker interface in internal/mcp/invoker.go
   - Define InvokeTool(agentRole, toolName, method, args) method
   - Orchestrate: RBAC check → budget check → transport invoke → audit log → normalize evidence
 
-- [ ] **T044** Implement AgentInvoker.InvokeTool in internal/mcp/invoker.go
+- [X] **T044** Implement AgentInvoker.InvokeTool in internal/mcp/invoker.go
   - Call rbac.CheckPermission(), return ErrPermissionDenied if false
   - Call rbac.ApplyBudget(), return ErrRateLimited if exceeded
   - Call transport.Invoke(method, args)
@@ -332,14 +332,14 @@ Single project structure (per plan.md):
   - Tests: T018, T020 should start passing
   - Covers FR-016, FR-017
 
-- [ ] **T045** Integrate with existing redaction in internal/mcp/invoker.go
+- [X] **T045** Integrate with existing redaction in internal/mcp/invoker.go
   - Import internal/ai/redactor.go
   - Call redactor.Redact(response) before returning
   - Set invocationLog.RedactionApplied = true
   - Tests: T020 should continue passing
   - Covers FR-018
 
-- [ ] **T046** Integrate with existing caching in internal/mcp/invoker.go
+- [X] **T046** Integrate with existing caching in internal/mcp/invoker.go
   - Import internal/store/cache.go
   - Check cache before invoking tool (cache key: toolName + method + argsHash)
   - Store response in cache after successful invocation
@@ -347,7 +347,7 @@ Single project structure (per plan.md):
   - Tests: T020 should continue passing
   - Covers FR-019
 
-- [ ] **T047** Implement normalizeEvidence helper in internal/mcp/evidence.go
+- [X] **T047** Implement normalizeEvidence helper in internal/mcp/evidence.go
   - Convert MCP response to pkg/types.Evidence struct
   - Set source metadata (tool name, method, timestamp)
   - Add provenance linking to invocation log
