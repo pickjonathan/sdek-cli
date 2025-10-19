@@ -18,6 +18,7 @@ const (
 	ScreenFrameworks
 	ScreenControls
 	ScreenEvidence
+	ScreenMCPTools
 	ScreenHelp
 )
 
@@ -35,6 +36,7 @@ type Model struct {
 	frameworksModel models.FrameworksModel
 	controlsModel   models.ControlsModel
 	evidenceModel   models.EvidenceModel
+	mcpToolsModel   models.MCPToolsModel
 
 	// Search mode
 	searchMode   bool
@@ -59,6 +61,7 @@ func NewModel(state *store.State, role string) Model {
 		frameworksModel: models.NewFrameworksModel(state),
 		controlsModel:   models.NewControlsModel(state, ""),
 		evidenceModel:   models.NewEvidenceModel(state, ""),
+		mcpToolsModel:   models.NewMCPToolsModel(),
 	}
 }
 
@@ -170,6 +173,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentScreen = ScreenEvidence
 			}
 			return m, nil
+		case "5":
+			if !m.searchMode {
+				m.currentScreen = ScreenMCPTools
+			}
+			return m, nil
 
 		default:
 			// Handle search input
@@ -204,6 +212,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.frameworksModel.SetSize(msg.Width, msg.Height)
 		m.controlsModel.SetSize(msg.Width, msg.Height)
 		m.evidenceModel.SetSize(msg.Width, msg.Height)
+		m.mcpToolsModel.SetSize(msg.Width, msg.Height)
 		return m, nil
 	}
 
@@ -226,6 +235,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if m.homeModel.SelectedScreen() == 4 {
 			m.currentScreen = ScreenEvidence
 			m.homeModel.ResetSelection()
+		} else if m.homeModel.SelectedScreen() == 5 {
+			m.currentScreen = ScreenMCPTools
+			m.homeModel.ResetSelection()
 		}
 		return m, cmd
 
@@ -247,6 +259,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScreenEvidence:
 		updatedModel, cmd := m.evidenceModel.Update(msg)
 		m.evidenceModel = updatedModel
+		return m, cmd
+
+	case ScreenMCPTools:
+		updatedModel, cmd := m.mcpToolsModel.Update(msg)
+		m.mcpToolsModel = updatedModel
 		return m, cmd
 	}
 
@@ -282,6 +299,8 @@ func (m Model) View() string {
 		content = m.controlsModel.View()
 	case ScreenEvidence:
 		content = m.evidenceModel.View()
+	case ScreenMCPTools:
+		content = m.mcpToolsModel.View()
 	default:
 		content = m.homeModel.View()
 	}
@@ -303,13 +322,14 @@ func (m Model) renderHelp() string {
 		key  string
 		desc string
 	}{
-		{"1-4", "Navigate to screen (Sources, Frameworks, Controls, Evidence)"},
+		{"1-5", "Navigate to screen (Sources, Frameworks, Controls, Evidence, MCP Tools)"},
 		{"↑/↓/j/k", "Navigate lists (vim-style)"},
 		{"←/→/h/l", "Navigate tabs (vim-style)"},
 		{"Enter", "Select item"},
 		{"/", "Search mode"},
 		{"r", "Refresh data"},
 		{"e", "Export current view"},
+		{"t", "Test MCP tool (in MCP Tools screen)"},
 		{"Esc/Backspace", "Go back / Exit search"},
 		{"?", "Toggle help"},
 		{"q/Ctrl+C", "Quit"},

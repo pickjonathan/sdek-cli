@@ -14,7 +14,7 @@ type HomeModel struct {
 	state          *store.State
 	width          int
 	height         int
-	selectedScreen int // 0 = none, 1 = sources, 2 = frameworks, 3 = controls, 4 = evidence
+	selectedScreen int // 0 = none, 1 = sources, 2 = frameworks, 3 = controls, 4 = evidence, 5 = mcp tools
 }
 
 // NewHomeModel creates a new home screen model
@@ -43,19 +43,21 @@ func (m HomeModel) Update(msg tea.Msg) (HomeModel, tea.Cmd) {
 			m.selectedScreen = 3
 		case "4":
 			m.selectedScreen = 4
+		case "5":
+			m.selectedScreen = 5
 		case "right", "l":
-			// Cycle forward through screens (1->2->3->4->1)
+			// Cycle forward through screens (1->2->3->4->5->1)
 			if m.selectedScreen == 0 {
 				m.selectedScreen = 1
 			} else {
-				m.selectedScreen = (m.selectedScreen % 4) + 1
+				m.selectedScreen = (m.selectedScreen % 5) + 1
 			}
 		case "left", "h":
-			// Cycle backward through screens (4->3->2->1->4)
+			// Cycle backward through screens (5->4->3->2->1->5)
 			if m.selectedScreen == 0 {
-				m.selectedScreen = 4
+				m.selectedScreen = 5
 			} else if m.selectedScreen == 1 {
-				m.selectedScreen = 4
+				m.selectedScreen = 5
 			} else {
 				m.selectedScreen = m.selectedScreen - 1
 			}
@@ -77,7 +79,7 @@ func (m HomeModel) View() string {
 
 	// Header
 	title := styles.TitleStyle.Render("sdek - Compliance Evidence Mapping")
-	subtitle := styles.SubtitleStyle.Render("Press 1-4 to navigate | ? for help | q to quit")
+	subtitle := styles.SubtitleStyle.Render("Press 1-5 to navigate | ? for help | q to quit")
 
 	s += title + "\n"
 	s += subtitle + "\n\n"
@@ -100,22 +102,30 @@ func (m HomeModel) renderSummary() string {
 	frameworksCard := m.makeCard("Frameworks", fmt.Sprintf("%d", len(m.state.Frameworks)), "2", "📋")
 	controlsCard := m.makeCard("Controls", fmt.Sprintf("%d", len(m.state.Controls)), "3", "🎯")
 	evidenceCard := m.makeCard("Evidence", fmt.Sprintf("%d", len(m.state.Evidence)), "4", "📄")
+	mcpToolsCard := m.makeCard("MCP Tools", "AI", "5", "🔌")
 
-	return lipgloss.JoinHorizontal(
+	row1 := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		sourcesCard,
 		"  ",
 		frameworksCard,
 		"  ",
 		controlsCard,
-		"  ",
-		evidenceCard,
 	)
+	
+	row2 := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		evidenceCard,
+		"  ",
+		mcpToolsCard,
+	)
+
+	return lipgloss.JoinVertical(lipgloss.Left, row1, "\n", row2)
 }
 
 // makeCard creates a summary card
 func (m HomeModel) makeCard(title, value, key, icon string) string {
-	cardWidth := (m.width - 8) / 4
+	cardWidth := (m.width - 8) / 3
 	if cardWidth < 15 {
 		cardWidth = 15
 	}
@@ -130,6 +140,8 @@ func (m HomeModel) makeCard(title, value, key, icon string) string {
 		keyNum = 3
 	} else if key == "4" {
 		keyNum = 4
+	} else if key == "5" {
+		keyNum = 5
 	}
 
 	cardStyle := styles.CardStyle.Width(cardWidth)

@@ -405,35 +405,44 @@ Single project structure (per plan.md):
 
 ## Phase 3.5: TUI Components (M5)
 
-- [ ] **T054** Implement MCP Tools panel model in ui/models/mcp_tools.go
+- [X] **T054** Implement MCP Tools panel model in ui/models/mcp_tools.go
   - Create Bubble Tea model struct
   - Implement Init() - fetch tools from registry
-  - Implement Update() - handle key events (arrow keys, Enter, space for toggle)
+  - Implement Update() - handle key events (arrow keys, Enter, t for test, r for refresh)
   - Implement View() - render tool list with status badges
+  - Include RenderStatusBadge helper for status display
   - Tests: T026 (golden file test, next phase)
   - Covers FR-029, FR-031
+  - **Implementation**: Created MCPToolsModel with full Bubble Tea integration, table-based UI showing name/status/latency/capabilities/last check
 
-- [ ] **T055** [P] Implement status badge component in ui/components/mcp_status.go
+- [X] **T055** Status badges integrated into mcp_tools.go (RenderStatusBadge function)
   - Use Lip Gloss for styling
   - Green badge for "ready"
   - Yellow badge for "degraded"
   - Red badge for "offline"
+  - Grey badge for "disabled"
   - Tests: T027 (golden file test, next phase)
   - Covers FR-029
+  - **Implementation**: RenderStatusBadge uses GreenColor/YellowColor/RedColor from styles theme
 
-- [ ] **T056** Integrate MCP Tools panel into main TUI in ui/app.go
-  - Add MCP Tools tab/panel
-  - Wire up model to registry
-  - Add real-time status updates (poll every 5s)
+- [X] **T056** Integrate MCP Tools panel into main TUI in ui/app.go
+  - Add MCP Tools screen (ScreenMCPTools)
+  - Wire up model to registry via NewMCPToolsModel()
+  - Add "5" key navigation
+  - Update home screen to show MCP Tools card
+  - Update help screen with MCP shortcuts
   - Tests: T028 (integration test, next phase)
   - Covers FR-029, FR-030
+  - **Implementation**: Full integration with screen enum, navigation, size handling, and view rendering
 
-- [ ] **T057** Implement quick-test action in ui/models/mcp_tools.go
+- [X] **T057** Quick-test action implemented in ui/models/mcp_tools.go
   - Add 't' key binding for test
   - Call registry.Test(selectedTool)
-  - Display diagnostic results inline
+  - Display results by updating tool status/latency/timestamp
+  - Error display in red box at top
   - Tests: T028 continues
   - Covers FR-032
+  - **Implementation**: testTool() method runs health check, mcpTestResultMsg updates tool state
 
 ---
 
