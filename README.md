@@ -406,6 +406,17 @@ export GITHUB_REPO="your-repo"
 - `slack.json` - Slack messages and channels
 - `jira.json` - Jira issues and projects
 
+**Testing AWS MCP Integration:**
+
+To verify that the AI is actually using AWS MCP tools for evidence collection:
+
+```bash
+# Run automated integration test
+./test_aws_mcp_integration.sh
+```
+
+See [Testing AWS MCP](./docs/TESTING_AWS_MCP.md) for comprehensive testing guide and troubleshooting.
+
 See [MCP Commands](./docs/commands.md#sdek-mcp) for detailed usage and configuration options.
 
 ## Commands
