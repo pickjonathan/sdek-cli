@@ -1,0 +1,10 @@
+Controls
+        
+
+Risk Summary: ● 1  ● 1  ● 1
+
+    ✓ CC6.1 - Logical Access Controls  
+    ⚠ CC6.2 - Authentication  
+    ✗ CC6.3 - Authorization  
+
+↑/↓: Navigate | Esc: Back | q: Quit

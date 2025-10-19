@@ -1,0 +1,7 @@
+Data Sources
+            
+
+  > git (main-repo)  
+    jira (project-tracker)  
+
+↑/↓: Navigate | Esc: Back | q: Quit

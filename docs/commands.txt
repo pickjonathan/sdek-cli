@@ -1,0 +1,48 @@
+sdek is a CLI and terminal UI tool that reduces audit preparation time
+by automating compliance evidence mapping.
+
+It ingests data from multiple sources (Git, Jira, Slack, CI/CD, Docs),
+maps them to compliance frameworks (SOC2, ISO 27001, PCI DSS), and
+provides interactive visualization with export capabilities.
+
+Usage:
+  sdek [command]
+
+Examples:
+  # Start the terminal UI
+  sdek tui
+
+  # Generate demo data
+  sdek seed --demo
+
+  # Ingest from specific source
+  sdek ingest --source git --events 50
+
+  # Analyze evidence and calculate risk scores
+  sdek analyze
+
+  # Export compliance report
+  sdek report --output ~/reports/compliance.json
+
+  # Manage configuration
+  sdek config get export.enabled
+
+Available Commands:
+  analyze     Analyze events and map them to compliance controls
+  completion  Generate the autocompletion script for the specified shell
+  config      Manage sdek configuration
+  help        Help about any command
+  ingest      Ingest events from a specific data source
+  report      Export compliance report to JSON
+  seed        Generate demo data for testing and development
+  tui         Launch the interactive terminal UI
+  version     Print version information
+
+Flags:
+      --config string      config file (default is $HOME/.sdek/config.yaml)
+      --data-dir string    data directory (default is $HOME/.sdek)
+  -h, --help               help for sdek
+      --log-level string   log level (debug, info, warn, error) (default "info")
+  -v, --verbose            verbose output
+
+Use "sdek [command] --help" for more information about a command.
