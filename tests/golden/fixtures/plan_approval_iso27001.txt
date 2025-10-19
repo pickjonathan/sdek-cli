@@ -1,0 +1,20 @@
+📋 Evidence Collection Plan
+                           
+
+Framework: ISO27001
+Section:   A.9.4.2
+Status:    pending
+Budget:    2 items approved, ~60 events total
+
+Plan Items:
+
+→ [✓] github: authentication (92% relevant)
+  [ ] github: mfa (88% relevant)
+  [✓] jira: INFOSEC-* (75% relevant)
+  [ ] aws: iam (65% relevant)
+  [✗] slack: security incident (45% relevant)
+
+                                                       
+↑/↓ Navigate  SPACE Toggle  A Approve All  R Reject All
+                           
+ENTER/Y Confirm  N/Q Cancel

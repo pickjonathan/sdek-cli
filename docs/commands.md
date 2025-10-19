@@ -126,6 +126,8 @@ sdek analyze [flags]
 **Flags:**
 - `--framework string` - Analyze specific framework (default: all)
 - `--confidence string` - Minimum confidence level: low, medium, high (default: low)
+- `--ai-provider string` - AI provider for enhanced analysis: openai, anthropic, none (default: from config)
+- `--no-ai` - Disable AI analysis (use heuristics only)
 
 **Examples:**
 ```bash
@@ -137,21 +139,49 @@ sdek analyze --framework soc2
 
 # Only map high-confidence evidence
 sdek analyze --confidence high
+
+# Use AI-enhanced analysis with OpenAI
+sdek analyze --ai-provider openai
+
+# Use Anthropic for this analysis
+sdek analyze --ai-provider anthropic
+
+# Disable AI for CI/CD environments (heuristics only)
+sdek analyze --no-ai
 ```
 
 **Description:**
 Performs compliance evidence mapping:
 1. Maps events to framework controls using keyword matching
-2. Calculates confidence scores for each mapping
-3. Generates compliance findings based on evidence gaps
-4. Updates risk status for each control (green/yellow/red)
-5. Calculates framework compliance percentages
+2. (Optional) Enhances mapping with AI natural language understanding
+3. Calculates hybrid confidence scores (70% AI + 30% heuristic when AI enabled)
+4. Generates compliance findings based on evidence gaps
+5. Updates risk status for each control (green/yellow/red)
+6. Calculates framework compliance percentages
 
 **Analysis Process:**
-- **Keyword Matching**: Events matched to controls via predefined keywords
-- **Confidence Scoring**: Based on keyword relevance and event metadata
+- **Keyword Matching**: Events matched to controls via predefined keywords (heuristic confidence)
+- **AI Enhancement** (when enabled): Natural language analysis with justifications and residual risk notes
+- **Confidence Scoring**: 
+  - Heuristic-only: Based on keyword relevance and event metadata
+  - AI-enhanced: Weighted average (70% AI + 30% heuristic)
 - **Risk Calculation**: Formula: 3 High = 1 Critical, 6 Medium = 1 Critical, 12 Low = 1 Critical
 - **Compliance**: Percentage of controls with green risk status
+
+**AI-Enhanced Analysis:**
+
+When AI is enabled (via config or `--ai-provider` flag), evidence mapping is enhanced with:
+- **Natural language understanding**: AI interprets event context beyond keyword matching
+- **Structured justifications**: Explains why each event supports the control
+- **Confidence scores**: 0-100 scale based on semantic relevance
+- **Residual risk notes**: Identifies gaps or concerns not addressed by evidence
+- **Privacy protection**: Automatic PII/secret redaction before AI transmission
+- **Intelligent caching**: Reuses previous AI analysis for unchanged events
+
+AI providers:
+- **OpenAI**: GPT-4 Turbo (`gpt-4-turbo-preview`) - General-purpose, fast
+- **Anthropic**: Claude 3 Opus (`claude-3-opus-20240229`) - Long context, detailed
+- **none**: Disable AI, use heuristics only (default, reproducible)
 
 ---
 
@@ -412,6 +442,114 @@ sdek analyze --framework soc2
 
 # Export and review
 sdek report --output test-report.json
+```
+
+---
+
+## AI Commands (Feature 003: Context Injection)
+
+The `sdek ai` command group provides AI-powered compliance analysis with policy context injection. These commands offer deeper, policy-grounded insights compared to the standard event-to-control mapping workflow.
+
+### sdek ai analyze
+
+Perform AI-enhanced compliance analysis by injecting policy context (framework excerpts, control descriptions) into the AI prompt.
+
+**Usage:**
+```bash
+sdek ai analyze --framework <framework> --section <section> \
+    --excerpts-file <path> --evidence-path <glob> [flags]
+```
+
+**Required Flags:**
+- `--framework string` - Framework name (e.g., SOC2, ISO27001, PCI-DSS)
+- `--section string` - Section ID (e.g., CC6.1, A.9.4.2)
+- `--excerpts-file string` - Path to policy excerpts JSON file
+- `--evidence-path strings` - Evidence file paths (supports globs, can be specified multiple times)
+
+**Optional Flags:**
+- `--no-cache` - Bypass cache and perform fresh analysis
+- `--output string` - Output file for finding results (default: `findings.json`)
+
+**Examples:**
+```bash
+# Basic context mode analysis for SOC2 CC6.1 (Access Controls)
+sdek ai analyze --framework SOC2 --section CC6.1 \
+    --excerpts-file ./policies/soc2_excerpts.json \
+    --evidence-path ./evidence/github_*.json \
+    --evidence-path ./evidence/jira_*.json
+
+# Analyze ISO 27001 section with single evidence source
+sdek ai analyze --framework ISO27001 --section A.9.4.2 \
+    --excerpts-file ./policies/iso_excerpts.json \
+    --evidence-path ./evidence/audit_logs.json
+
+# Bypass cache for fresh analysis (useful for testing policy changes)
+sdek ai analyze --framework SOC2 --section CC6.1 \
+    --excerpts-file ./policies/soc2_excerpts.json \
+    --evidence-path ./evidence/*.json \
+    --no-cache
+
+# Multiple evidence paths from different sources
+sdek ai analyze --framework PCI-DSS --section 8.2.4 \
+    --excerpts-file ./policies/pci_excerpts.json \
+    --evidence-path ./evidence/github/*.json \
+    --evidence-path ./evidence/jira/*.json \
+    --evidence-path ./evidence/slack/*.json
+
+# Specify custom output file for finding results
+sdek ai analyze --framework ISO27001 --section A.9.4.2 \
+    --excerpts-file ./policies/iso_excerpts.json \
+    --evidence-path ./evidence/*.json \
+    --output ./findings/iso_a942_finding.json
+```
+
+**Description:**
+
+Context injection mode provides policy-grounded AI analysis that goes beyond generic event-to-control mapping. Key features:
+
+- **Context Injection**: Policy excerpts and control descriptions guide AI analysis for more accurate, policy-aligned findings
+- **PII/Secret Redaction**: Automatic redaction of sensitive data before sending to AI provider
+- **Response Caching**: Reuses previous AI analysis for identical context/evidence combinations
+- **Confidence Scoring**: 0-100 scale with automatic low-confidence flagging
+- **Detailed Findings**: Structured findings with citations, justifications, and residual risk assessment
+
+**Differences from `sdek analyze --ai`:**
+
+| Feature | `sdek analyze --ai` | `sdek ai analyze` |
+|---------|---------------------|-------------------|
+| **Purpose** | Event-to-control mapping enhancement | Policy-grounded compliance analysis |
+| **Context** | Generic control descriptions | Detailed policy excerpts |
+| **Workflow** | Enhances existing mapping | Specialized analysis mode |
+| **Output** | Enhanced evidence items | Detailed findings with citations |
+| **Use Case** | Quick analysis across all controls | Deep dive on specific policy sections |
+
+**Policy Excerpts File Format:**
+
+The excerpts file should contain policy text relevant to the framework and section:
+
+```json
+[
+  {
+    "framework": "SOC2",
+    "version": "2017",
+    "section": "CC6.1",
+    "text": "The entity implements logical access security software...",
+    "related_sections": ["CC6.2", "CC6.3"]
+  }
+]
+```
+
+**Configuration:**
+
+Confidence thresholds and redaction patterns are configured in `config.yaml`:
+
+```yaml
+ai:
+  context_injection:
+    confidence_threshold: 70  # Flag findings below this score
+    auto_approve_rules:
+      - "github:repo:myorg/security-*"
+      - "jira:project:INFOSEC"
 ```
 
 ---

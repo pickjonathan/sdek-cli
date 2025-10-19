@@ -620,7 +620,7 @@ type mockAIResponse struct {
 	residualRisk  string
 }
 
-func (m *mockAIEngine) Analyze(ctx context.Context, req *ai.AnalysisRequest) (*ai.AnalysisResponse, error) {
+func (m *mockAIEngine) AnalyzeWithRequest(ctx context.Context, req *ai.AnalysisRequest) (*ai.AnalysisResponse, error) {
 	m.callCount++
 
 	if m.captureRequest {
@@ -652,6 +652,21 @@ func (m *mockAIEngine) Analyze(ctx context.Context, req *ai.AnalysisRequest) (*a
 		Timestamp:     time.Now(),
 		CacheHit:      false,
 	}, nil
+}
+
+// Analyze implements ai.Engine.Analyze (Feature 003)
+func (m *mockAIEngine) Analyze(ctx context.Context, preamble types.ContextPreamble, evidence types.EvidenceBundle) (*types.Finding, error) {
+	return nil, ai.ErrProviderUnavailable // Not implemented for tests
+}
+
+// ProposePlan implements ai.Engine.ProposePlan (Feature 003)
+func (m *mockAIEngine) ProposePlan(ctx context.Context, preamble types.ContextPreamble) (*types.EvidencePlan, error) {
+	return nil, ai.ErrProviderUnavailable // Not implemented for tests
+}
+
+// ExecutePlan implements ai.Engine.ExecutePlan (Feature 003)
+func (m *mockAIEngine) ExecutePlan(ctx context.Context, plan *types.EvidencePlan) (*types.EvidenceBundle, error) {
+	return nil, ai.ErrProviderUnavailable // Not implemented for tests
 }
 
 func (m *mockAIEngine) Provider() string {

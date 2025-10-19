@@ -17,6 +17,24 @@ type Finding struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	AssignedTo  string    `json:"assigned_to"`
+
+	// AI Analysis fields (Feature 003)
+	Summary         string            `json:"summary"`
+	MappedControls  []string          `json:"mapped_controls"`
+	ConfidenceScore float64           `json:"confidence_score"`
+	ResidualRisk    string            `json:"residual_risk"`
+	Justification   string            `json:"justification"`
+	Citations       []string          `json:"citations"`
+	ReviewRequired  bool              `json:"review_required"`
+	Mode            string            `json:"mode"` // "ai" or "heuristics"
+	Provenance      []ProvenanceEntry `json:"provenance,omitempty"`
+}
+
+// ProvenanceEntry represents a source that contributed to the finding.
+type ProvenanceEntry struct {
+	Source     string `json:"source"`      // "github", "aws", etc.
+	Query      string `json:"query"`       // Query used
+	EventsUsed int    `json:"events_used"` // Count of events from this source
 }
 
 // Severity constants

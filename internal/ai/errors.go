@@ -9,6 +9,21 @@ var (
 
 	// ErrZeroEvents indicates no events were provided for analysis
 	ErrZeroEvents = errors.New("ai: no events to analyze")
+
+	// ErrNoPlanItems indicates the AI provider returned no plan items
+	ErrNoPlanItems = errors.New("ai: provider returned no plan items")
+
+	// ErrBudgetExceeded indicates the proposed plan exceeds configured budgets
+	ErrBudgetExceeded = errors.New("ai: proposed plan exceeds budget limits")
+
+	// ErrPlanNotApproved indicates the plan must be approved before execution
+	ErrPlanNotApproved = errors.New("ai: plan must be approved before execution")
+
+	// ErrNoApprovedItems indicates no items in the plan are approved for execution
+	ErrNoApprovedItems = errors.New("ai: no approved items in plan")
+
+	// ErrMCPConnectorFailed indicates all MCP connector calls failed
+	ErrMCPConnectorFailed = errors.New("ai: all MCP connector calls failed")
 )
 
 // Provider errors (retryable with backoff)

@@ -203,9 +203,9 @@ func (m *Mapper) analyzeControlWithAI(ctx context.Context, frameworkID string, c
 		return m.convertAIResponseToEvidence(cached.Response, events, frameworkID, control, true)
 	}
 
-	// Cache miss - call AI
+	// Cache miss - call AI using backward compatibility layer
 	slog.Debug("Calling AI for control analysis", "control", fullControlID, "eventCount", len(events))
-	response, err := m.aiEngine.Analyze(ctx, req)
+	response, err := m.aiEngine.AnalyzeWithRequest(ctx, req)
 	if err != nil {
 		// AI failed - fallback to heuristic
 		slog.Warn("AI analysis failed, falling back to heuristic", "control", fullControlID, "error", err)
