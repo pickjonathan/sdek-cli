@@ -19,7 +19,7 @@ type StdioTransport struct {
 	cmd        *exec.Cmd
 	stdin      io.WriteCloser
 	stdout     io.ReadCloser
-	scanner    *bufio.Scanner
+	reader     *bufio.Reader // Use Reader instead of Scanner for thread-safety
 	mu         sync.Mutex
 	requestID  int
 	latencies  []time.Duration
@@ -58,7 +58,7 @@ func NewStdioTransport(config *types.MCPConfig) (*StdioTransport, error) {
 		cmd:        cmd,
 		stdin:      stdin,
 		stdout:     stdout,
-		scanner:    bufio.NewScanner(stdout),
+		reader:     bufio.NewReader(stdout),
 		latencies:  make([]time.Duration, 0, 100),
 		maxLatency: 100,
 	}, nil
@@ -66,16 +66,13 @@ func NewStdioTransport(config *types.MCPConfig) (*StdioTransport, error) {
 
 // Invoke sends a JSON-RPC 2.0 request over stdin and reads the response from stdout.
 func (t *StdioTransport) Invoke(ctx context.Context, method string, params interface{}) (interface{}, error) {
+	start := time.Now()
+
+	// Lock for the entire request-response cycle to prevent interleaving
 	t.mu.Lock()
+
 	t.requestID++
 	reqID := t.requestID
-	t.mu.Unlock()
-
-	start := time.Now()
-	defer func() {
-		latency := time.Since(start)
-		t.recordLatency(latency)
-	}()
 
 	// Build JSON-RPC 2.0 request
 	request := map[string]interface{}{
@@ -90,23 +87,21 @@ func (t *StdioTransport) Invoke(ctx context.Context, method string, params inter
 	// Send request
 	reqData, err := json.Marshal(request)
 	if err != nil {
+		t.mu.Unlock()
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	t.mu.Lock()
 	_, err = t.stdin.Write(append(reqData, '\n'))
-	t.mu.Unlock()
-
 	if err != nil {
+		t.mu.Unlock()
 		return nil, fmt.Errorf("failed to write request: %w", err)
 	}
 
-	// Read response
-	if !t.scanner.Scan() {
-		if err := t.scanner.Err(); err != nil {
-			return nil, fmt.Errorf("failed to read response: %w", err)
-		}
-		return nil, fmt.Errorf("process closed unexpectedly")
+	// Read response line (JSON-RPC responses are newline-delimited)
+	responseBytes, err := t.reader.ReadBytes('\n')
+	if err != nil {
+		t.mu.Unlock()
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	var response struct {
@@ -119,9 +114,17 @@ func (t *StdioTransport) Invoke(ctx context.Context, method string, params inter
 		} `json:"error,omitempty"`
 	}
 
-	if err := json.Unmarshal(t.scanner.Bytes(), &response); err != nil {
+	if err := json.Unmarshal(responseBytes, &response); err != nil {
+		t.mu.Unlock()
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
+
+	// Unlock before recording latency (which also needs the lock)
+	t.mu.Unlock()
+
+	// Record latency after releasing the main lock
+	latency := time.Since(start)
+	t.recordLatency(latency)
 
 	if response.Error != nil {
 		return nil, fmt.Errorf("RPC error %d: %s", response.Error.Code, response.Error.Message)
@@ -130,9 +133,32 @@ func (t *StdioTransport) Invoke(ctx context.Context, method string, params inter
 	return response.Result, nil
 }
 
-// HealthCheck performs a simple health check by invoking a ping method.
+// HealthCheck performs a simple health check by invoking the MCP initialize method.
 func (t *StdioTransport) HealthCheck(ctx context.Context) error {
-	_, err := t.Invoke(ctx, "ping", nil)
+	// MCP protocol requires initialize with clientInfo and protocolVersion
+	params := map[string]interface{}{
+		"protocolVersion": "2024-11-05",
+		"capabilities":    map[string]interface{}{},
+		"clientInfo": map[string]interface{}{
+			"name":    "sdek-cli",
+			"version": "1.0.0",
+		},
+	}
+	_, err := t.Invoke(ctx, "initialize", params)
+	if err != nil {
+		return err
+	}
+
+	// Send initialized notification (required by MCP protocol)
+	notification := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  "notifications/initialized",
+	}
+	notifData, _ := json.Marshal(notification)
+	t.mu.Lock()
+	_, err = t.stdin.Write(append(notifData, '\n'))
+	t.mu.Unlock()
+
 	return err
 }
 

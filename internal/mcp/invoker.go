@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -106,7 +107,7 @@ func (inv *invoker) InvokeTool(ctx context.Context, agentRole, toolName, method 
 	}
 
 	// Step 5: Invoke transport
-	trans, err := inv.getTransport(&tool)
+	trans, err := inv.registry.GetTransport(toolName)
 	if err != nil {
 		inv.recordAuditLog(ctx, agentRole, toolName, method, args, startTime, "error", "", err)
 		return nil, fmt.Errorf("failed to get transport: %w", err)
@@ -116,6 +117,15 @@ func (inv *invoker) InvokeTool(ctx context.Context, agentRole, toolName, method 
 	if err != nil {
 		inv.recordAuditLog(ctx, agentRole, toolName, method, args, startTime, "error", "", err)
 		return nil, fmt.Errorf("transport invocation failed: %w", err)
+	}
+
+	// Log response for debugging (sanitized)
+	if responseMap, ok := response.(map[string]interface{}); ok {
+		slog.Debug("MCP tool response received",
+			"tool", toolName,
+			"method", method,
+			"has_result", responseMap["result"] != nil,
+			"response_keys", getMapKeys(responseMap))
 	}
 
 	// Step 6: Redaction
@@ -231,4 +241,13 @@ func getErrorMessage(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+// getMapKeys extracts keys from a map for logging.
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

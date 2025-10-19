@@ -12,22 +12,24 @@ import (
 
 // Registry manages the lifecycle of MCP tool connections.
 type Registry struct {
-	tools     map[string]*types.MCPTool
-	mu        sync.RWMutex
-	loader    *Loader
-	validator *Validator
-	watcher   *Watcher
-	stopCh    chan struct{}
-	wg        sync.WaitGroup
+	tools      map[string]*types.MCPTool
+	transports map[string]transport.Transport // Keep transports alive
+	mu         sync.RWMutex
+	loader     *Loader
+	validator  *Validator
+	watcher    *Watcher
+	stopCh     chan struct{}
+	wg         sync.WaitGroup
 }
 
 // NewRegistry creates a new MCP registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		tools:     make(map[string]*types.MCPTool),
-		loader:    NewLoader("", ""),
-		validator: NewValidator(),
-		stopCh:    make(chan struct{}),
+		tools:      make(map[string]*types.MCPTool),
+		transports: make(map[string]transport.Transport),
+		loader:     NewLoader("", ""),
+		validator:  NewValidator(),
+		stopCh:     make(chan struct{}),
 	}
 }
 
@@ -129,7 +131,7 @@ func (r *Registry) initTool(ctx context.Context, config *types.MCPConfig) error 
 		tool.Status = types.ToolStatusDegraded
 		tool.LastError = err
 		tool.CircuitBreaker.Failures = 1
-		trans.Close()
+		trans.Close() // Close only on failure
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
@@ -137,6 +139,7 @@ func (r *Registry) initTool(ctx context.Context, config *types.MCPConfig) error 
 
 	r.mu.Lock()
 	r.tools[config.Name] = tool
+	r.transports[config.Name] = trans // Store transport for reuse
 	r.mu.Unlock()
 
 	return nil
@@ -145,29 +148,30 @@ func (r *Registry) initTool(ctx context.Context, config *types.MCPConfig) error 
 // Close gracefully shuts down all tool connections.
 func (r *Registry) Close(ctx context.Context) error {
 	close(r.stopCh)
-
-	done := make(chan struct{})
-	go func() {
-		r.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	r.wg.Wait()
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for name := range r.tools {
-		if tool := r.tools[name]; tool != nil {
-			tool.Status = types.ToolStatusOffline
-		}
+	// Close all transports
+	for _, trans := range r.transports {
+		trans.Close()
 	}
 
 	return nil
+}
+
+// GetTransport returns the transport for a tool (for use by invoker).
+func (r *Registry) GetTransport(toolName string) (transport.Transport, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	trans, ok := r.transports[toolName]
+	if !ok {
+		return nil, fmt.Errorf("transport not found for tool: %s", toolName)
+	}
+
+	return trans, nil
 }
 
 // Reload re-scans config directories and hot-reloads changed tools.

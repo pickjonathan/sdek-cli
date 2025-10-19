@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -9,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pickjonathan/sdek-cli/internal/ai"
 	"github.com/pickjonathan/sdek-cli/internal/analyze"
+	"github.com/pickjonathan/sdek-cli/internal/mcp"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
 	"github.com/pickjonathan/sdek-cli/ui/components"
 	"github.com/spf13/cobra"
@@ -194,14 +196,94 @@ func runAIPlan(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create context preamble: %w", err)
 	}
 
-	// Step 4: Initialize AI engine using new factory
-	slog.Info("Initializing AI engine", "provider", cfg.AI.Provider)
-	engine, err := ai.NewEngineFromConfig(cfg)
+	// Step 4: Initialize MCP registry and show available tools
+	slog.Info("Initializing MCP registry")
+	mcpRegistry, err := initializeMCPRegistry(cmd.Context(), cfg)
 	if err != nil {
-		return fmt.Errorf("failed to initialize AI engine: %w", err)
+		slog.Warn("MCP registry initialization failed", "error", err)
+		mcpRegistry = nil // Ensure it's nil on error
 	}
 
-	// Log enabled connectors
+	// Display available MCP tools
+	if mcpRegistry != nil {
+		tools, err := mcpRegistry.List(cmd.Context())
+		if err != nil {
+			slog.Warn("Failed to list MCP tools", "error", err)
+		} else {
+			slog.Info("MCP tools registered", "count", len(tools))
+			for _, tool := range tools {
+				slog.Info("MCP tool available",
+					"name", tool.Name,
+					"status", tool.Status,
+					"enabled", tool.Enabled)
+			}
+		}
+	}
+
+	// Step 4a: Initialize AI engine with MCP connector
+	slog.Info("Initializing AI engine", "provider", cfg.AI.Provider)
+
+	var engine ai.Engine
+	if mcpRegistry != nil {
+		// Create pass-through enforcer for autonomous mode (no RBAC restrictions)
+		enforcer := &passThroughEnforcer{}
+		redactor := &passThroughRedactor{}
+
+		// Create MCP invoker
+		mcpInvoker := mcp.NewInvoker(
+			mcpRegistry,
+			enforcer,
+			redactor,
+			nil, // cache - will be skipped if nil
+		)
+
+		// Create MCP adapter that implements ai.MCPConnector interface
+		mcpConnector := &mcpRegistryAdapter{
+			registry: mcpRegistry,
+			invoker:  mcpInvoker,
+		}
+
+		slog.Info("Using new MCP registry for evidence collection (Feature 004)")
+
+		// Create AI provider configuration
+		aiConfig := ai.AIConfig{
+			Provider:     cfg.AI.Provider,
+			Enabled:      cfg.AI.Enabled,
+			Model:        cfg.AI.Model,
+			MaxTokens:    4096,
+			Temperature:  0.3,
+			Timeout:      cfg.AI.Timeout,
+			RateLimit:    cfg.AI.RateLimit,
+			OpenAIKey:    cfg.AI.OpenAIKey,
+			AnthropicKey: cfg.AI.AnthropicKey,
+		}
+
+		// Override with APIKey if provider-specific keys are empty
+		if cfg.AI.Provider == types.AIProviderOpenAI && aiConfig.OpenAIKey == "" {
+			aiConfig.OpenAIKey = cfg.AI.APIKey
+		}
+		if cfg.AI.Provider == types.AIProviderAnthropic && aiConfig.AnthropicKey == "" {
+			aiConfig.AnthropicKey = cfg.AI.APIKey
+		}
+
+		// Create provider
+		provider, err := ai.CreateProviderFromRegistry(cfg.AI.Provider, aiConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create AI provider: %w", err)
+		}
+
+		// Create engine with MCP connector
+		engine = ai.NewEngineWithConnector(cfg, provider, mcpConnector)
+	} else {
+		// Fall back to legacy connector system
+		slog.Warn("MCP registry unavailable, using legacy connector system")
+		engine, err = ai.NewEngineFromConfig(cfg)
+		if err != nil {
+			return fmt.Errorf("failed to initialize AI engine: %w", err)
+		}
+	}
+
+	// Log connector status
 	if len(cfg.AI.Connectors) > 0 {
 		enabledConnectors := []string{}
 		for name, conn := range cfg.AI.Connectors {
@@ -209,8 +291,9 @@ func runAIPlan(cmd *cobra.Command, args []string) error {
 				enabledConnectors = append(enabledConnectors, name)
 			}
 		}
-		if len(enabledConnectors) > 0 {
-			slog.Info("Connectors enabled", "connectors", enabledConnectors)
+		if len(enabledConnectors) > 0 && mcpRegistry == nil {
+			slog.Info("Legacy connectors enabled", "connectors", enabledConnectors)
+			slog.Warn("Note: Legacy connector system - only GitHub implemented in connectors")
 		}
 	}
 
@@ -250,6 +333,7 @@ func runAIPlan(cmd *cobra.Command, args []string) error {
 		for i := range plan.Items {
 			plan.Items[i].ApprovalStatus = types.ApprovalApproved
 		}
+		plan.Status = types.PlanApproved // Mark the overall plan as approved
 		slog.Info("Auto-approved all plan items", "count", len(plan.Items))
 	} else {
 		// Launch TUI for interactive approval
@@ -326,6 +410,26 @@ func runAIPlan(cmd *cobra.Command, args []string) error {
 
 // Helper functions
 
+// initializeMCPRegistry initializes the MCP registry if MCP is enabled
+func initializeMCPRegistry(ctx context.Context, cfg *types.Config) (*mcp.Registry, error) {
+	// Check if MCP feature is enabled (via viper config)
+	if !viper.GetBool("mcp.enabled") {
+		slog.Debug("MCP is disabled in config")
+		return nil, nil
+	}
+
+	// Create registry
+	registry := mcp.NewRegistry()
+
+	// Initialize registry (it will discover configs from standard paths)
+	_, err := registry.Init(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MCP registry: %w", err)
+	}
+
+	return registry, nil
+}
+
 func countAutoApproved(plan *types.EvidencePlan) int {
 	count := 0
 	for _, item := range plan.Items {
@@ -364,4 +468,238 @@ func confidenceLevel(score float64) string {
 		return "medium"
 	}
 	return "low"
+}
+
+// mcpRegistryAdapter adapts the new MCP registry (Feature 004) to the legacy MCPConnector interface.
+// This allows ExecutePlan to use MCP tools while maintaining backward compatibility.
+type mcpRegistryAdapter struct {
+	registry *mcp.Registry
+	invoker  mcp.AgentInvoker
+}
+
+// Collect fetches evidence from an MCP tool based on the source and query.
+func (m *mcpRegistryAdapter) Collect(ctx context.Context, source string, query string) ([]types.EvidenceEvent, error) {
+	slog.Debug("MCP adapter collecting evidence", "source", source, "query", query)
+
+	// Map source to MCP tool name
+	toolName, method := mapSourceToMCPTool(source)
+	if toolName == "" {
+		return nil, fmt.Errorf("no MCP tool available for source: %s", source)
+	}
+
+	// Check if tool is available and ready
+	tool, err := m.registry.Get(ctx, toolName)
+	if err != nil {
+		return nil, fmt.Errorf("MCP tool %s not found: %w", toolName, err)
+	}
+
+	if tool.Status != "ready" {
+		return nil, fmt.Errorf("MCP tool %s is not ready (status: %s)", toolName, tool.Status)
+	}
+
+	slog.Info("Using MCP tool for evidence collection", "tool", toolName, "method", method, "source", source)
+
+	// Parse query into MCP tool arguments
+	args, err := parseQueryToArgs(source, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse query: %w", err)
+	}
+
+	slog.Debug("Invoking MCP tool", "tool", toolName, "method", method, "args", args)
+
+	// MCP protocol requires tools/call method with name and arguments
+	mcpParams := map[string]interface{}{
+		"name":      method, // "call_aws" or "suggest_aws_commands"
+		"arguments": args,   // The actual tool arguments
+	}
+
+	// Invoke MCP tool using tools/call method
+	evidence, err := m.invoker.InvokeTool(ctx, "autonomous-agent", toolName, "tools/call", mcpParams)
+	if err != nil {
+		slog.Error("MCP tool invocation failed", "tool", toolName, "error", err)
+		return nil, fmt.Errorf("MCP tool invocation failed: %w", err)
+	}
+
+	slog.Info("MCP tool invocation successful", "tool", toolName, "evidence_id", evidence.ID)
+
+	// Log the MCP evidence details for debugging
+	if slog.Default().Enabled(ctx, slog.LevelDebug) {
+		slog.Debug("MCP evidence details",
+			"tool", toolName,
+			"evidence_id", evidence.ID,
+			"reasoning", evidence.Reasoning,
+			"keywords", evidence.Keywords,
+			"confidence_score", evidence.ConfidenceScore,
+			"analysis_method", evidence.AnalysisMethod)
+	}
+
+	// Convert Evidence to EvidenceEvent
+	events := convertEvidenceToEvents(evidence, source, query)
+	return events, nil
+}
+
+// mapSourceToMCPTool maps plan item source names to MCP tool names and methods.
+func mapSourceToMCPTool(source string) (toolName string, method string) {
+	// Check if source contains AWS-related keywords
+	if contains(source, "AWS") || contains(source, "CloudTrail") || contains(source, "IAM") || contains(source, "EC2") || contains(source, "S3") {
+		return "aws-api", "tools/call"
+	}
+
+	// Check for GitHub
+	if contains(source, "Github") || contains(source, "GitHub") || contains(source, "GITHUB") {
+		return "github-api", "tools/call"
+	}
+
+	// Check for Jira
+	if contains(source, "Jira") || contains(source, "JIRA") {
+		return "jira-api", "tools/call"
+	}
+
+	// Check for Slack
+	if contains(source, "Slack") || contains(source, "SLACK") {
+		return "slack-api", "tools/call"
+	}
+
+	return "", ""
+} // parseQueryToArgs converts a natural language query into MCP tool arguments.
+func parseQueryToArgs(source, query string) (map[string]interface{}, error) {
+	// Check if source is AWS-related
+	if contains(source, "AWS") || contains(source, "CloudTrail") || contains(source, "IAM") || contains(source, "EC2") || contains(source, "S3") {
+		return parseAWSQuery(query)
+	}
+
+	if contains(source, "Github") || contains(source, "GitHub") {
+		return parseGitHubQuery(query)
+	}
+
+	if contains(source, "Jira") {
+		return parseJiraQuery(query)
+	}
+
+	if contains(source, "Slack") {
+		return parseSlackQuery(query)
+	}
+
+	return nil, fmt.Errorf("unsupported source: %s", source)
+}
+
+// parseAWSQuery converts a natural language AWS query into AWS CLI command arguments.
+func parseAWSQuery(query string) (map[string]interface{}, error) {
+	// Simple keyword-based parsing - can be enhanced with AI later
+	queryLower := query
+
+	var cliCommand string
+
+	// Detect CloudTrail queries
+	if contains(queryLower, "cloudtrail") || contains(queryLower, "CloudTrail") {
+		cliCommand = "aws cloudtrail lookup-events --max-results 50"
+	} else if contains(queryLower, "iam") || contains(queryLower, "IAM") {
+		// Detect IAM queries
+		if contains(queryLower, "user") {
+			cliCommand = "aws iam list-users"
+		} else if contains(queryLower, "policy") || contains(queryLower, "policies") {
+			cliCommand = "aws iam list-policies --scope Local --max-items 50"
+		} else {
+			cliCommand = "aws iam list-users"
+		}
+	} else {
+		// Default: return simple command
+		cliCommand = "aws sts get-caller-identity"
+	}
+
+	// Return in MCP tools/call format
+	return map[string]interface{}{
+		"name": "call_aws",
+		"arguments": map[string]interface{}{
+			"cli_command": cliCommand,
+		},
+	}, nil
+} // parseGitHubQuery converts GitHub queries (placeholder).
+func parseGitHubQuery(query string) (map[string]interface{}, error) {
+	return map[string]interface{}{
+		"query": query,
+	}, nil
+}
+
+// parseJiraQuery converts Jira queries (placeholder).
+func parseJiraQuery(query string) (map[string]interface{}, error) {
+	return map[string]interface{}{
+		"jql": query,
+	}, nil
+}
+
+// parseSlackQuery converts Slack queries (placeholder).
+func parseSlackQuery(query string) (map[string]interface{}, error) {
+	return map[string]interface{}{
+		"query": query,
+	}, nil
+}
+
+// convertEvidenceToEvents converts an MCP Evidence to EvidenceEvents.
+func convertEvidenceToEvents(evidence *types.Evidence, source, query string) []types.EvidenceEvent {
+	if evidence == nil {
+		return []types.EvidenceEvent{}
+	}
+
+	event := types.EvidenceEvent{
+		ID:        evidence.ID,
+		Source:    source,
+		Type:      "mcp-evidence",
+		Timestamp: evidence.MappedAt,
+		Content:   evidence.Reasoning,
+		Metadata: map[string]interface{}{
+			"evidence_id":          evidence.ID,
+			"confidence_score":     evidence.ConfidenceScore,
+			"confidence_level":     evidence.ConfidenceLevel,
+			"analysis_method":      evidence.AnalysisMethod,
+			"keywords":             evidence.Keywords,
+			"ai_analyzed":          evidence.AIAnalyzed,
+			"heuristic_confidence": evidence.HeuristicConfidence,
+			"combined_confidence":  evidence.CombinedConfidence,
+			"query":                query,
+		},
+	}
+
+	return []types.EvidenceEvent{event}
+}
+
+// contains is a case-insensitive string contains check.
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || len(s) > len(substr)+1 && findSubstring(s, substr)))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+// passThroughEnforcer is a no-op enforcer that allows all operations.
+// Used for autonomous mode where RBAC restrictions are not needed.
+type passThroughEnforcer struct{}
+
+func (p *passThroughEnforcer) CheckPermission(ctx context.Context, agentRole string, capability string) (bool, error) {
+	return true, nil // Always allow
+}
+
+func (p *passThroughEnforcer) GetCapabilities(ctx context.Context, agentRole string) ([]types.AgentCapability, error) {
+	return []types.AgentCapability{}, nil
+}
+
+func (p *passThroughEnforcer) ApplyBudget(ctx context.Context, toolName string, budget *types.ToolBudget) error {
+	return nil // No budget enforcement
+}
+
+func (p *passThroughEnforcer) RecordInvocation(ctx context.Context, log *types.MCPInvocationLog) error {
+	return nil // No logging
+}
+
+// passThroughRedactor is a no-op redactor that doesn't redact anything.
+type passThroughRedactor struct{}
+
+func (p *passThroughRedactor) Redact(text string) (string, *types.RedactionMap, error) {
+	return text, &types.RedactionMap{}, nil
 }

@@ -38,13 +38,13 @@ func TestMCPListOutput(t *testing.T) {
 		if line == "" {
 			continue
 		}
-		
+
 		// Each row should have columns separated by whitespace
 		fields := strings.Fields(line)
 		if len(fields) < 6 {
 			t.Errorf("Line %d has insufficient columns (expected 6+): %s", i, line)
 		}
-		
+
 		// Verify status values are valid
 		status := fields[1]
 		validStatuses := []string{"online", "offline", "degraded", "unknown"}
@@ -76,23 +76,23 @@ func TestMCPValidateOutput(t *testing.T) {
 	// Should have file validation lines with ✓ or ❌
 	hasValidation := false
 	hasSummary := false
-	
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		
+
 		// Check for validation markers
 		if strings.HasPrefix(line, "✓") || strings.HasPrefix(line, "❌") {
 			hasValidation = true
-			
+
 			// Validation lines should reference a file path
 			if !strings.Contains(line, ".json") && !strings.Contains(line, "All configuration") {
 				t.Errorf("Validation line doesn't reference a file: %s", line)
 			}
 		}
-		
+
 		// Check for summary line
 		if strings.Contains(line, "All configuration files") {
 			hasSummary = true
@@ -120,18 +120,18 @@ func TestTUIMCPToolsOutput(t *testing.T) {
 
 	// Check for required UI components
 	requiredElements := []string{
-		"MCP Tools",              // Title
-		"NAME",                   // Table header
-		"STATUS",                 // Table header
-		"LATENCY",                // Table header
-		"CAPABILITIES",           // Table header
-		"LAST CHECK",             // Table header
-		"Test selected tool",     // Action help
-		"Refresh",                // Action help
-		"Back to home",           // Action help
-		"Help:",                  // Help section
-		"Quit",                   // Help text
-		"Navigate screens",       // Help text
+		"MCP Tools",          // Title
+		"NAME",               // Table header
+		"STATUS",             // Table header
+		"LATENCY",            // Table header
+		"CAPABILITIES",       // Table header
+		"LAST CHECK",         // Table header
+		"Test selected tool", // Action help
+		"Refresh",            // Action help
+		"Back to home",       // Action help
+		"Help:",              // Help section
+		"Quit",               // Help text
+		"Navigate screens",   // Help text
 	}
 
 	for _, elem := range requiredElements {
@@ -141,9 +141,9 @@ func TestTUIMCPToolsOutput(t *testing.T) {
 	}
 
 	// Check for status indicators (emoji or text)
-	hasStatusIndicator := strings.Contains(content, "🟢") || 
-	                       strings.Contains(content, "online") ||
-	                       strings.Contains(content, "offline")
+	hasStatusIndicator := strings.Contains(content, "🟢") ||
+		strings.Contains(content, "online") ||
+		strings.Contains(content, "offline")
 	if !hasStatusIndicator {
 		t.Error("TUI golden file should contain status indicators")
 	}
@@ -185,7 +185,7 @@ func CompareOutput(t *testing.T, actual []byte, goldenPath string) {
 	goldenNorm := NormalizeWhitespace(string(golden))
 
 	if actualNorm != goldenNorm {
-		t.Errorf("Output differs from golden file %s\nActual:\n%s\n\nExpected:\n%s", 
+		t.Errorf("Output differs from golden file %s\nActual:\n%s\n\nExpected:\n%s",
 			goldenPath, actualNorm, goldenNorm)
 	}
 }
