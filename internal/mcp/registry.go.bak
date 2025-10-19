@@ -1,0 +1,861 @@
+package mcp
+
+import (
+
+	"context"import (import (
+
+	"fmt"
+
+	"sync"	"context"	"context"
+
+	"time"
+
+	"fmt"	"fmt"
+
+	"github.com/pickjonathan/sdek-cli/internal/mcp/transport"
+
+	"github.com/pickjonathan/sdek-cli/pkg/types"	"time"	"sync"
+
+)
+
+	"time"
+
+// Registry manages the lifecycle of MCP tool connections.
+
+type Registry struct {	"github.com/pickjonathan/sdek-cli/pkg/types"
+
+	tools     map[string]*types.MCPTool
+
+	mu        sync.RWMutex)	"github.com/pickjonathan/sdek-cli/internal/mcp/transport"
+
+	loader    *Loader
+
+	validator *Validator	"github.com/pickjonathan/sdek-cli/pkg/types"
+
+	watcher   *Watcher
+
+	stopCh    chan struct{}const ()
+
+	wg        sync.WaitGroup
+
+}	// Circuit breaker thresholds
+
+
+
+// NewRegistry creates a new MCP registry.	maxConsecutiveFailures = 5// Registry manages the lifecycle of MCP tool connections.
+
+func NewRegistry() *Registry {
+
+	return &Registry{	halfOpenTimeout        = 60 * time.Secondtype Registry struct {
+
+		tools:     make(map[string]*types.MCPTool),
+
+		loader:    NewLoader("", ""),	successesForClose      = 2	tools     map[string]*types.MCPTool
+
+		validator: NewValidator(),
+
+		stopCh:    make(chan struct{}),)	mu        sync.RWMutex
+
+	}
+
+}	loader    *Loader
+
+
+
+// Init discovers and initializes all MCP tools from configured paths.// CircuitBreakerManager manages circuit breaker logic for tools.	validator *Validator
+
+func (r *Registry) Init(ctx context.Context) (int, error) {
+
+	// Load all configurationstype CircuitBreakerManager struct {	watcher   *Watcher
+
+	configs, err := r.loader.LoadConfigs()
+
+	if err != nil {	// Could add more state here if needed	stopCh    chan struct{}
+
+		return 0, fmt.Errorf("failed to load configs: %w", err)
+
+	}}	wg        sync.WaitGroup
+
+
+
+	if len(configs) == 0 {}
+
+		return 0, nil // No configs found, not an error
+
+	}// RecordSuccess records a successful invocation.
+
+
+
+	successCount := 0func RecordSuccess(cb *types.CircuitBreaker) {// NewRegistry creates a new MCP registry.
+
+	var initWg sync.WaitGroup
+
+	switch cb.State {func NewRegistry() *Registry {
+
+	// Initialize each tool asynchronously
+
+	for _, config := range configs {	case types.CircuitBreakerClosed:	return &Registry{
+
+		initWg.Add(1)
+
+		go func(cfg *types.MCPConfig) {		// Already closed, reset failure count		tools:     make(map[string]*types.MCPTool),
+
+			defer initWg.Done()
+
+		cb.Failures = 0		loader:    NewLoader("", ""),
+
+			if err := r.initTool(ctx, cfg); err != nil {
+
+				fmt.Printf("warning: failed to init tool %s: %v\n", cfg.Name, err)	case types.CircuitBreakerHalfOpen:		validator: NewValidator(),
+
+				// Create tool in degraded state
+
+				r.mu.Lock()		// Success in half-open state		stopCh:    make(chan struct{}),
+
+				r.tools[cfg.Name] = &types.MCPTool{
+
+					Name:            cfg.Name,		cb.Successes++	}
+
+					Config:          cfg,
+
+					Status:          types.ToolStatusDegraded,		if cb.Successes >= successesForClose {}
+
+					LastError:       err,
+
+					LastHealthCheck: time.Now(),			// Enough successes, close the circuit
+
+					Enabled:         true,
+
+					CircuitBreaker: &types.CircuitBreaker{			cb.State = types.CircuitBreakerClosed// Init discovers and initializes all MCP tools from configured paths.
+
+						State:    types.CircuitBreakerOpen,
+
+						Failures: 1,			cb.Failures = 0func (r *Registry) Init(ctx context.Context) (int, error) {
+
+					},
+
+				}			cb.Successes = 0	// Load all configurations
+
+				r.mu.Unlock()
+
+			} else {		}	configs, err := r.loader.LoadConfigs()
+
+				r.mu.Lock()
+
+				successCount++	case types.CircuitBreakerOpen:	if err != nil {
+
+				r.mu.Unlock()
+
+			}		// Should not happen, but reset if it does		return 0, fmt.Errorf("failed to load configs: %w", err)
+
+		}(config)
+
+	}		cb.State = types.CircuitBreakerClosed	}
+
+
+
+	// Wait for all initializations		cb.Failures = 0
+
+	initWg.Wait()
+
+		cb.Successes = 0	if len(configs) == 0 {
+
+	// Start health monitor
+
+	r.wg.Add(1)	}		return 0, nil // No configs found, not an error
+
+	go r.healthMonitor(ctx)
+
+}	}
+
+	// Start file watcher for hot-reload
+
+	if r.watcher != nil {
+
+		r.wg.Add(1)
+
+		go r.watcher.Watch(ctx, r, r.stopCh, nil)// RecordFailure records a failed invocation.	successCount := 0
+
+	}
+
+func RecordFailure(cb *types.CircuitBreaker) {	var initWg sync.WaitGroup
+
+	return successCount, nil
+
+}	cb.LastFailTime = time.Now()
+
+
+
+// initTool initializes a single tool with handshake.	// Initialize each tool asynchronously
+
+func (r *Registry) initTool(ctx context.Context, config *types.MCPConfig) error {
+
+	// Create transport	switch cb.State {	for _, config := range configs {
+
+	var trans transport.Transport
+
+	var err error	case types.CircuitBreakerClosed:		initWg.Add(1)
+
+
+
+	switch config.Transport {		cb.Failures++		go func(cfg *types.MCPConfig) {
+
+	case "stdio":
+
+		trans, err = transport.NewStdioTransport(config)		if cb.Failures >= maxConsecutiveFailures {			defer initWg.Done()
+
+	case "http":
+
+		trans, err = transport.NewHTTPTransport(config)			// Too many failures, open the circuit
+
+	default:
+
+		return fmt.Errorf("unsupported transport: %s", config.Transport)			cb.State = types.CircuitBreakerOpen			if err := r.initTool(ctx, cfg); err != nil {
+
+	}
+
+		}				fmt.Printf("warning: failed to init tool %s: %v\n", cfg.Name, err)
+
+	if err != nil {
+
+		return fmt.Errorf("failed to create transport: %w", err)	case types.CircuitBreakerHalfOpen:				// Create tool in degraded state
+
+	}
+
+		// Failure in half-open state, reopen				r.mu.Lock()
+
+	// Perform handshake with timeout
+
+	handshakeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)		cb.State = types.CircuitBreakerOpen				r.tools[cfg.Name] = &types.MCPTool{
+
+	defer cancel()
+
+		cb.Successes = 0					Name:            cfg.Name,
+
+	start := time.Now()
+
+	err = trans.HealthCheck(handshakeCtx)	case types.CircuitBreakerOpen:					Config:          cfg,
+
+	handshakeLatency := time.Since(start)
+
+		// Already open, just increment					Status:          types.ToolStatusDegraded,
+
+	tool := &types.MCPTool{
+
+		Name:            config.Name,		cb.Failures++					LastError:       err,
+
+		Config:          config,
+
+		LastHealthCheck: time.Now(),	}					LastHealthCheck: time.Now(),
+
+		Enabled:         true,
+
+		Metrics: types.ToolMetrics{}					Enabled:         true,
+
+			HandshakeLatency: handshakeLatency,
+
+		},					CircuitBreaker: &types.CircuitBreaker{
+
+		CircuitBreaker: &types.CircuitBreaker{
+
+			State: types.CircuitBreakerClosed,// CanAttempt checks if an invocation can be attempted.						State:    types.CircuitBreakerOpen,
+
+		},
+
+	}func CanAttempt(cb *types.CircuitBreaker) error {						Failures: 1,
+
+
+
+	if err != nil {	switch cb.State {					},
+
+		tool.Status = types.ToolStatusDegraded
+
+		tool.LastError = err	case types.CircuitBreakerClosed:				}
+
+		tool.CircuitBreaker.Failures = 1
+
+		trans.Close() // Close failed connection		return nil				r.mu.Unlock()
+
+		return fmt.Errorf("handshake failed: %w", err)
+
+	}	case types.CircuitBreakerHalfOpen:			} else {
+
+
+
+	tool.Status = types.ToolStatusReady		return nil				r.mu.Lock()
+
+	
+
+	r.mu.Lock()	case types.CircuitBreakerOpen:				successCount++
+
+	r.tools[config.Name] = tool
+
+	r.mu.Unlock()		// Check if enough time has passed to try half-open				r.mu.Unlock()
+
+
+
+	return nil		if time.Since(cb.LastFailTime) > halfOpenTimeout {			}
+
+}
+
+			cb.State = types.CircuitBreakerHalfOpen		}(config)
+
+// Close gracefully shuts down all tool connections.
+
+func (r *Registry) Close(ctx context.Context) error {			cb.Successes = 0	}
+
+	close(r.stopCh)
+
+				return nil
+
+	// Wait for background goroutines with timeout
+
+	done := make(chan struct{})		}	// Wait for all initializations
+
+	go func() {
+
+		r.wg.Wait()		return ErrCircuitOpen	initWg.Wait()
+
+		close(done)
+
+	}()	}
+
+
+
+	select {	return nil	// Start health monitor
+
+	case <-done:
+
+		// Clean shutdown}	r.wg.Add(1)
+
+	case <-ctx.Done():
+
+		// Timeout	go r.healthMonitor(ctx)
+
+		return ctx.Err()
+
+	}// CalculateBackoff returns the backoff duration for retries.
+
+
+
+	// Close all transportsfunc CalculateBackoff(failures int) time.Duration {	// Start file watcher for hot-reload
+
+	r.mu.Lock()
+
+	defer r.mu.Unlock()	// Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s	if r.watcher != nil {
+
+
+
+	for name := range r.tools {	// With jitter of ±20%		r.wg.Add(1)
+
+		// Transport cleanup would go here
+
+		// For now, just mark as offline	base := time.Duration(1) * time.Second		go r.watcher.Watch(ctx, r)
+
+		if tool := r.tools[name]; tool != nil {
+
+			tool.Status = types.ToolStatusOffline	for i := 0; i < failures && base < 30*time.Second; i++ {	}
+
+		}
+
+	}		base *= 2
+
+
+
+	return nil	}	return successCount, nil
+
+}
+
+	if base > 30*time.Second {}
+
+// Reload re-scans config directories and hot-reloads changed tools.
+
+func (r *Registry) Reload(ctx context.Context) (int, error) {		base = 30 * time.Second
+
+	// Load fresh configs
+
+	configs, err := r.loader.LoadConfigs()	}// initTool initializes a single tool with handshake.
+
+	if err != nil {
+
+		return 0, fmt.Errorf("failed to load configs: %w", err)func (r *Registry) initTool(ctx context.Context, config *types.MCPConfig) error {
+
+	}
+
+	// Add jitter (±20%)	// Create transport
+
+	configMap := make(map[string]*types.MCPConfig)
+
+	for _, cfg := range configs {	jitter := time.Duration(float64(base) * 0.2 * (0.5 - float64(time.Now().UnixNano()%100)/100.0))	var trans transport.Transport
+
+		configMap[cfg.Name] = cfg
+
+	}	return base + jitter	var err error
+
+
+
+	reloadCount := 0}
+
+
+
+	r.mu.Lock()	switch config.Transport {
+
+	defer r.mu.Unlock()
+
+// TransitionToolState updates tool status based on circuit breaker state.	case "stdio":
+
+	// Check for new or modified tools
+
+	for name, newConfig := range configMap {func TransitionToolState(tool *types.MCPTool) {		trans, err = transport.NewStdioTransport(config)
+
+		if _, exists := r.tools[name]; exists {
+
+			// Tool exists - check if config changed	switch tool.CircuitBreaker.State {	case "http":
+
+			// Simplified: always reload
+
+			reloadCount++	case types.CircuitBreakerClosed:		trans, err = transport.NewHTTPTransport(config)
+
+			// In a real implementation, compare configs and only reload if changed
+
+		} else {		if tool.Enabled {	default:
+
+			// New tool - initialize it
+
+			go func(cfg *types.MCPConfig) {			tool.Status = types.ToolStatusReady		return fmt.Errorf("unsupported transport: %s", config.Transport)
+
+				r.initTool(ctx, cfg)
+
+			}(newConfig)		}	}
+
+			reloadCount++
+
+		}	case types.CircuitBreakerHalfOpen:
+
+	}
+
+		tool.Status = types.ToolStatusDegraded	if err != nil {
+
+	// Check for removed tools
+
+	for name := range r.tools {	case types.CircuitBreakerOpen:		return fmt.Errorf("failed to create transport: %w", err)
+
+		if _, exists := configMap[name]; !exists {
+
+			// Tool removed		tool.Status = types.ToolStatusOffline	}
+
+			r.tools[name].Status = types.ToolStatusOffline
+
+			r.tools[name].Enabled = false	}
+
+			delete(r.tools, name)
+
+			reloadCount++}	// Perform handshake with timeout
+
+		}
+
+	}	handshakeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+
+
+
+	return reloadCount, nil// CheckAndTransition checks circuit breaker and transitions tool state if needed.	defer cancel()
+
+}
+
+func CheckAndTransition(ctx context.Context, tool *types.MCPTool) error {
+
+// List returns all discovered tools with their current status.
+
+func (r *Registry) List(ctx context.Context) ([]types.MCPTool, error) {	if err := CanAttempt(tool.CircuitBreaker); err != nil {	start := time.Now()
+
+	r.mu.RLock()
+
+	defer r.mu.RUnlock()		TransitionToolState(tool)	err = trans.HealthCheck(handshakeCtx)
+
+
+
+	tools := make([]types.MCPTool, 0, len(r.tools))		return fmt.Errorf("circuit breaker: %w", err)	handshakeLatency := time.Since(start)
+
+	for _, tool := range r.tools {
+
+		tools = append(tools, *tool)	}
+
+	}
+
+	return nil	tool := &types.MCPTool{
+
+	return tools, nil
+
+}}		Name:            config.Name,
+
+
+
+// Get retrieves a specific tool by name.		Config:          config,
+
+func (r *Registry) Get(ctx context.Context, name string) (types.MCPTool, error) {		LastHealthCheck: time.Now(),
+
+	r.mu.RLock()		Enabled:         true,
+
+	defer r.mu.RUnlock()		Metrics: types.ToolMetrics{
+
+			HandshakeLatency: handshakeLatency,
+
+	tool, exists := r.tools[name]		},
+
+	if !exists {		CircuitBreaker: &types.CircuitBreaker{
+
+		return types.MCPTool{}, ErrToolNotFound			State: types.CircuitBreakerClosed,
+
+	}		},
+
+	}
+
+	return *tool, nil
+
+}	if err != nil {
+
+		tool.Status = types.ToolStatusDegraded
+
+// Enable marks a tool as administratively enabled.		tool.LastError = err
+
+func (r *Registry) Enable(ctx context.Context, name string) error {		tool.CircuitBreaker.Failures = 1
+
+	r.mu.Lock()		trans.Close() // Close failed connection
+
+	defer r.mu.Unlock()		return fmt.Errorf("handshake failed: %w", err)
+
+	}
+
+	tool, exists := r.tools[name]
+
+	if !exists {	tool.Status = types.ToolStatusReady
+
+		return ErrToolNotFound	
+
+	}	r.mu.Lock()
+
+	r.tools[config.Name] = tool
+
+	tool.Enabled = true	r.mu.Unlock()
+
+	
+
+	// Try to transition to ready if circuit breaker allows	return nil
+
+	if tool.CircuitBreaker.State != types.CircuitBreakerOpen {}
+
+		tool.Status = types.ToolStatusReady
+
+	}// Close gracefully shuts down all tool connections.
+
+func (r *Registry) Close(ctx context.Context) error {
+
+	return nil	close(r.stopCh)
+
+}	
+
+	// Wait for background goroutines with timeout
+
+// Disable marks a tool as administratively disabled.	done := make(chan struct{})
+
+func (r *Registry) Disable(ctx context.Context, name string) error {	go func() {
+
+	r.mu.Lock()		r.wg.Wait()
+
+	defer r.mu.Unlock()		close(done)
+
+	}()
+
+	tool, exists := r.tools[name]
+
+	if !exists {	select {
+
+		return ErrToolNotFound	case <-done:
+
+	}		// Clean shutdown
+
+	case <-ctx.Done():
+
+	tool.Enabled = false		// Timeout
+
+	tool.Status = types.ToolStatusOffline		return ctx.Err()
+
+	}
+
+	return nil
+
+}	// Close all transports
+
+	r.mu.Lock()
+
+// Validate validates one or more config files against the schema.	defer r.mu.Unlock()
+
+func (r *Registry) Validate(ctx context.Context, paths ...string) ([]types.SchemaError, error) {
+
+	var allErrors []types.SchemaError	for name := range r.tools {
+
+		// Transport cleanup would go here
+
+	for _, path := range paths {		// For now, just mark as offline
+
+		errors := r.validator.Validate(path)		if tool := r.tools[name]; tool != nil {
+
+		allErrors = append(allErrors, errors...)			tool.Status = types.ToolStatusOffline
+
+	}		}
+
+	}
+
+	return allErrors, nil
+
+}	return nil
+
+}
+
+// Test performs a health check and handshake on a tool.
+
+func (r *Registry) Test(ctx context.Context, name string) (types.MCPHealthReport, error) {// Reload re-scans config directories and hot-reloads changed tools.
+
+	r.mu.RLock()func (r *Registry) Reload(ctx context.Context) (int, error) {
+
+	tool, exists := r.tools[name]	// Load fresh configs
+
+	r.mu.RUnlock()	configs, err := r.loader.LoadConfigs()
+
+	if err != nil {
+
+	if !exists {		return 0, fmt.Errorf("failed to load configs: %w", err)
+
+		return types.MCPHealthReport{}, ErrToolNotFound	}
+
+	}
+
+	configMap := make(map[string]*types.MCPConfig)
+
+	report := types.MCPHealthReport{	for _, cfg := range configs {
+
+		ToolName:         tool.Name,		configMap[cfg.Name] = cfg
+
+		Status:           tool.Status,	}
+
+		HandshakeLatency: tool.Metrics.HandshakeLatency,
+
+		Capabilities:     tool.Config.Capabilities,	reloadCount := 0
+
+		LastError:        tool.LastError,
+
+		Timestamp:        time.Now(),	r.mu.Lock()
+
+	}	defer r.mu.Unlock()
+
+
+
+	return report, nil	// Check for new or modified tools
+
+}	for name, newConfig := range configMap {
+
+		if _, exists := r.tools[name]; exists {
+
+// healthMonitor runs periodic health checks in the background.			// Tool exists - check if config changed
+
+func (r *Registry) healthMonitor(ctx context.Context) {			// Simplified: always reload
+
+	defer r.wg.Done()			reloadCount++
+
+			// In a real implementation, compare configs and only reload if changed
+
+	ticker := time.NewTicker(30 * time.Second)		} else {
+
+	defer ticker.Stop()			// New tool - initialize it
+
+			go func(cfg *types.MCPConfig) {
+
+	for {				r.initTool(ctx, cfg)
+
+		select {			}(newConfig)
+
+		case <-ticker.C:			reloadCount++
+
+			r.performHealthChecks(ctx)		}
+
+		case <-r.stopCh:	}
+
+			return
+
+		case <-ctx.Done():	// Check for removed tools
+
+			return	for name := range r.tools {
+
+		}		if _, exists := configMap[name]; !exists {
+
+	}			// Tool removed
+
+}			r.tools[name].Status = types.ToolStatusOffline
+
+			r.tools[name].Enabled = false
+
+// performHealthChecks checks health of all tools.			delete(r.tools, name)
+
+func (r *Registry) performHealthChecks(ctx context.Context) {			reloadCount++
+
+	r.mu.RLock()		}
+
+	tools := make([]*types.MCPTool, 0, len(r.tools))	}
+
+	for _, tool := range r.tools {
+
+		if tool.Enabled {	return reloadCount, nil
+
+			tools = append(tools, tool)}
+
+		}
+
+	}// List returns all discovered tools with their current status.
+
+	r.mu.RUnlock()func (r *Registry) List(ctx context.Context) ([]types.MCPTool, error) {
+
+	r.mu.RLock()
+
+	for _, tool := range tools {	defer r.mu.RUnlock()
+
+		go func(t *types.MCPTool) {
+
+			// Health check logic would go here	tools := make([]types.MCPTool, 0, len(r.tools))
+
+			// For now, just update timestamp	for _, tool := range r.tools {
+
+			r.mu.Lock()		tools = append(tools, *tool)
+
+			t.LastHealthCheck = time.Now()	}
+
+			r.mu.Unlock()
+
+		}(tool)	return tools, nil
+
+	}}
+
+}
+
+// Get retrieves a specific tool by name.
+func (r *Registry) Get(ctx context.Context, name string) (types.MCPTool, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	tool, exists := r.tools[name]
+	if !exists {
+		return types.MCPTool{}, ErrToolNotFound
+	}
+
+	return *tool, nil
+}
+
+// Enable marks a tool as administratively enabled.
+func (r *Registry) Enable(ctx context.Context, name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	tool, exists := r.tools[name]
+	if !exists {
+		return ErrToolNotFound
+	}
+
+	tool.Enabled = true
+	
+	// Try to transition to ready if circuit breaker allows
+	if tool.CircuitBreaker.State != types.CircuitBreakerOpen {
+		tool.Status = types.ToolStatusReady
+	}
+
+	return nil
+}
+
+// Disable marks a tool as administratively disabled.
+func (r *Registry) Disable(ctx context.Context, name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	tool, exists := r.tools[name]
+	if !exists {
+		return ErrToolNotFound
+	}
+
+	tool.Enabled = false
+	tool.Status = types.ToolStatusOffline
+
+	return nil
+}
+
+// Validate validates one or more config files against the schema.
+func (r *Registry) Validate(ctx context.Context, paths ...string) ([]types.SchemaError, error) {
+	var allErrors []types.SchemaError
+
+	for _, path := range paths {
+		errors := r.validator.Validate(path)
+		allErrors = append(allErrors, errors...)
+	}
+
+	return allErrors, nil
+}
+
+// Test performs a health check and handshake on a tool.
+func (r *Registry) Test(ctx context.Context, name string) (types.MCPHealthReport, error) {
+	r.mu.RLock()
+	tool, exists := r.tools[name]
+	r.mu.RUnlock()
+
+	if !exists {
+		return types.MCPHealthReport{}, ErrToolNotFound
+	}
+
+	report := types.MCPHealthReport{
+		ToolName:         tool.Name,
+		Status:           tool.Status,
+		HandshakeLatency: tool.Metrics.HandshakeLatency,
+		Capabilities:     tool.Config.Capabilities,
+		LastError:        tool.LastError,
+		Timestamp:        time.Now(),
+	}
+
+	return report, nil
+}
+
+// healthMonitor runs periodic health checks in the background.
+func (r *Registry) healthMonitor(ctx context.Context) {
+	defer r.wg.Done()
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			r.performHealthChecks(ctx)
+		case <-r.stopCh:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// performHealthChecks checks health of all tools.
+func (r *Registry) performHealthChecks(ctx context.Context) {
+	r.mu.RLock()
+	tools := make([]*types.MCPTool, 0, len(r.tools))
+	for _, tool := range r.tools {
+		if tool.Enabled {
+			tools = append(tools, tool)
+		}
+	}
+	r.mu.RUnlock()
+
+	for _, tool := range tools {
+		go func(t *types.MCPTool) {
+			// Health check logic would go here
+			// For now, just update timestamp
+			r.mu.Lock()
+			t.LastHealthCheck = time.Now()
+			r.mu.Unlock()
+		}(tool)
+	}
+}
