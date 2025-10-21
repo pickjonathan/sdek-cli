@@ -44,3 +44,7 @@ build/
 
 # Reports
 reports/
+
+# Claude Code / Spec Kit
+.claude/*
+!.claude/commands/
