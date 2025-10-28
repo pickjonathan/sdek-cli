@@ -10,12 +10,13 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/pickjonathan/sdek-cli/internal/ai"
+	"github.com/pickjonathan/sdek-cli/internal/ai/factory"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
 )
 
 // Register Anthropic provider factory on package initialization
 func init() {
-	ai.RegisterProviderFactory("anthropic", func(config ai.AIConfig) (ai.Provider, error) {
+	factory.RegisterProviderFactory("anthropic", func(config types.ProviderConfig) (ai.Provider, error) {
 		return NewAnthropicEngine(config)
 	})
 }
@@ -31,20 +32,54 @@ type AnthropicEngine struct {
 	lastPrompt string
 }
 
-// NewAnthropicEngine creates a new Anthropic engine
-func NewAnthropicEngine(config ai.AIConfig) (*AnthropicEngine, error) {
-	if config.AnthropicKey == "" {
+// NewAnthropicEngine creates a new Anthropic engine from ProviderConfig
+func NewAnthropicEngine(config types.ProviderConfig) (*AnthropicEngine, error) {
+	// Validate API key
+	if config.APIKey == "" {
 		return nil, ai.ErrProviderAuth
 	}
 
-	client := anthropic.NewClient(
-		option.WithAPIKey(config.AnthropicKey),
-	)
+	// Set defaults if not provided
+	if config.Timeout == 0 {
+		config.Timeout = 60
+	}
+	if config.MaxRetries == 0 {
+		config.MaxRetries = 3
+	}
+	if config.MaxTokens == 0 {
+		config.MaxTokens = 4096
+	}
+
+	// Create Anthropic client with options
+	options := []option.RequestOption{
+		option.WithAPIKey(config.APIKey),
+	}
+
+	// Override base URL if custom endpoint provided
+	if config.Endpoint != "" {
+		options = append(options, option.WithBaseURL(config.Endpoint))
+	}
+
+	client := anthropic.NewClient(options...)
+
+	// Convert ProviderConfig to legacy AIConfig for internal use
+	// This maintains compatibility with existing methods
+	legacyConfig := ai.AIConfig{
+		Provider:     "anthropic",
+		Enabled:      true,
+		Model:        config.Model,
+		MaxTokens:    config.MaxTokens,
+		Temperature:  float32(config.Temperature),
+		Timeout:      config.Timeout,
+		RateLimit:    0, // Rate limiting handled by provider if configured
+		OpenAIKey:    "",
+		AnthropicKey: config.APIKey,
+	}
 
 	return &AnthropicEngine{
 		client:  &client,
-		config:  config,
-		limiter: NewRateLimiter(config.RateLimit),
+		config:  legacyConfig,
+		limiter: NewRateLimiter(0), // No rate limiting by default for new system
 	}, nil
 }
 

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/pickjonathan/sdek-cli/internal/ai"
-	"github.com/pickjonathan/sdek-cli/internal/ai/providers"
+	"github.com/pickjonathan/sdek-cli/internal/ai/factory"
 	"github.com/pickjonathan/sdek-cli/internal/analyze"
 	"github.com/pickjonathan/sdek-cli/internal/store"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
@@ -307,72 +307,70 @@ func initializeAIMapper(config *types.Config) (*analyze.Mapper, error) {
 		"timeout", timeout,
 		"cacheDir", cacheDir)
 
-	// Build AIConfig from settings
-	aiConfig := ai.AIConfig{
-		Provider:     string(provider),
-		Enabled:      true,
-		Model:        model,
-		Timeout:      timeout,
-		OpenAIKey:    os.Getenv("SDEK_OPENAI_KEY"),
-		AnthropicKey: os.Getenv("SDEK_ANTHROPIC_KEY"),
+	// Build ProviderConfig from settings
+	providerConfig := types.ProviderConfig{
+		Model:       model,
+		MaxTokens:   4096,
+		Temperature: 0.3,
+		Timeout:     timeout,
+		MaxRetries:  3,
 	}
 
-	// Override with config values if available
-	if config != nil {
-		if aiConfig.OpenAIKey == "" {
-			aiConfig.OpenAIKey = config.AI.OpenAIKey
-		}
-		if aiConfig.AnthropicKey == "" {
-			aiConfig.AnthropicKey = config.AI.AnthropicKey
-		}
-		if config.AI.RateLimit > 0 {
-			aiConfig.RateLimit = config.AI.RateLimit
-		} else {
-			aiConfig.RateLimit = 10 // Default 10 requests per minute
-		}
-	} else {
-		aiConfig.RateLimit = 10
-	}
-
-	// Set defaults for fields not in types.AIConfig
-	aiConfig.MaxTokens = 4096  // Default token limit
-	aiConfig.Temperature = 0.3 // Default temperature for deterministic output
-
-	// Validate API key for the selected provider
-	if provider == types.AIProviderOpenAI && aiConfig.OpenAIKey == "" {
-		return nil, fmt.Errorf("OpenAI API key required - set SDEK_OPENAI_KEY environment variable or configure in config.yaml")
-	}
-	if provider == types.AIProviderAnthropic && aiConfig.AnthropicKey == "" {
-		return nil, fmt.Errorf("Anthropic API key required - set SDEK_ANTHROPIC_KEY environment variable or configure in config.yaml")
-	}
-
-	// Create AI engine based on provider
-	var engine ai.Engine
-	var err error
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
-	defer cancel()
-
+	// Get API key from environment or config
+	var apiKey string
 	switch provider {
 	case types.AIProviderOpenAI:
-		slog.Info("Initializing OpenAI engine", "model", model, "rateLimit", aiConfig.RateLimit)
-		engine, err = providers.NewOpenAIEngine(aiConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create OpenAI engine: %w", err)
+		apiKey = os.Getenv("SDEK_OPENAI_KEY")
+		if apiKey == "" && config != nil {
+			apiKey = config.AI.OpenAIKey
 		}
-
+		if apiKey == "" {
+			return nil, fmt.Errorf("OpenAI API key required - set SDEK_OPENAI_KEY environment variable or configure in config.yaml")
+		}
 	case types.AIProviderAnthropic:
-		slog.Info("Initializing Anthropic engine", "model", model, "rateLimit", aiConfig.RateLimit)
-		engine, err = providers.NewAnthropicEngine(aiConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Anthropic engine: %w", err)
+		apiKey = os.Getenv("SDEK_ANTHROPIC_KEY")
+		if apiKey == "" && config != nil {
+			apiKey = config.AI.AnthropicKey
 		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("Anthropic API key required - set SDEK_ANTHROPIC_KEY environment variable or configure in config.yaml")
+		}
+	default:
+		return nil, fmt.Errorf("unsupported AI provider: %s", provider)
+	}
+	providerConfig.APIKey = apiKey
 
+	// Determine provider URL
+	var providerURL string
+	switch provider {
+	case types.AIProviderOpenAI:
+		providerURL = "openai://api.openai.com"
+	case types.AIProviderAnthropic:
+		providerURL = "anthropic://api.anthropic.com"
 	default:
 		return nil, fmt.Errorf("unsupported AI provider: %s", provider)
 	}
 
+	// Create AI provider
+	slog.Info("Initializing AI provider", "provider", provider, "model", model)
+	aiProvider, err := factory.CreateProvider(providerURL, providerConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AI provider: %w", err)
+	}
+
+	// Create minimal config for engine
+	engineConfig := &types.Config{}
+	if config != nil {
+		engineConfig = config
+	}
+
+	// Create AI engine
+	engine := ai.NewEngine(engineConfig, aiProvider)
+
 	// Test AI engine health
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer cancel()
+
 	slog.Info("Testing AI engine health")
 	if err := engine.Health(ctx); err != nil {
 		slog.Warn("AI engine health check failed", "error", err)

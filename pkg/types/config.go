@@ -4,14 +4,16 @@ import "fmt"
 
 // Config represents the application configuration
 type Config struct {
-	DataDir    string           `json:"data_dir" mapstructure:"data_dir"`
-	LogLevel   string           `json:"log_level" mapstructure:"log_level"`
-	Theme      string           `json:"theme" mapstructure:"theme"`
-	UserRole   string           `json:"user_role" mapstructure:"user_role"`
-	Export     ExportConfig     `json:"export" mapstructure:"export"`
-	Frameworks FrameworksConfig `json:"frameworks" mapstructure:"frameworks"`
-	Sources    SourcesConfig    `json:"sources" mapstructure:"sources"`
-	AI         AIConfig         `json:"ai" mapstructure:"ai"`
+	DataDir    string                     `json:"data_dir" mapstructure:"data_dir"`
+	LogLevel   string                     `json:"log_level" mapstructure:"log_level"`
+	Theme      string                     `json:"theme" mapstructure:"theme"`
+	UserRole   string                     `json:"user_role" mapstructure:"user_role"`
+	Export     ExportConfig               `json:"export" mapstructure:"export"`
+	Frameworks FrameworksConfig           `json:"frameworks" mapstructure:"frameworks"`
+	Sources    SourcesConfig              `json:"sources" mapstructure:"sources"`
+	AI         AIConfig                   `json:"ai" mapstructure:"ai"`
+	MCP        MCPConfig                  `json:"mcp" mapstructure:"mcp"`                             // Feature 006: MCP configuration
+	Providers  map[string]ProviderConfig  `json:"providers,omitempty" mapstructure:"providers"`      // Feature 006: AI provider configs
 }
 
 // ExportConfig contains export-related settings
@@ -30,24 +32,27 @@ type SourcesConfig struct {
 	Enabled []string `json:"enabled" mapstructure:"enabled"`
 }
 
-// AIConfig contains AI analysis settings (Feature 002 + 003: AI Evidence Analysis + Context Injection)
+// AIConfig contains AI analysis settings (Feature 002 + 003 + 006: AI Evidence Analysis + Context Injection + Provider Switching)
 type AIConfig struct {
 	Enabled      bool                       `json:"enabled" mapstructure:"enabled"`
-	Provider     string                     `json:"provider" mapstructure:"provider"` // anthropic|openai
+	Provider     string                     `json:"provider" mapstructure:"provider"`           // anthropic|openai (legacy)
+	ProviderURL  string                     `json:"provider_url" mapstructure:"provider_url"`   // Feature 006: URL scheme (e.g., ollama://localhost:11434)
 	Model        string                     `json:"model" mapstructure:"model"`
+	MaxTokens    int                        `json:"max_tokens" mapstructure:"max_tokens"`       // Feature 006: Max tokens for response
+	Temperature  float32                    `json:"temperature" mapstructure:"temperature"`     // Feature 006: Sampling temperature
 	OpenAIKey    string                     `json:"openai_key" mapstructure:"openai_key"`
 	AnthropicKey string                     `json:"anthropic_key" mapstructure:"anthropic_key"`
-	APIKey       string                     `json:"apiKey" mapstructure:"apiKey"`           // Feature 003: Unified API key field
-	Mode         string                     `json:"mode" mapstructure:"mode"`               // Feature 003: disabled|context|autonomous
-	Timeout      int                        `json:"timeout" mapstructure:"timeout"`         // seconds
-	RateLimit    int                        `json:"rate_limit" mapstructure:"rate_limit"`   // requests per minute
-	CacheDir     string                     `json:"cache_dir" mapstructure:"cache_dir"`     // cache directory path
-	NoCache      bool                       `json:"no_cache" mapstructure:"no_cache"`       // Feature 003: Disable caching
-	Concurrency  ConcurrencyLimits          `json:"concurrency" mapstructure:"concurrency"` // Feature 003: Concurrency limits
-	Budgets      BudgetLimits               `json:"budgets" mapstructure:"budgets"`         // Feature 003: Budget limits
-	Autonomous   AutonomousConfig           `json:"autonomous" mapstructure:"autonomous"`   // Feature 003: Autonomous mode config
-	Redaction    RedactionConfig            `json:"redaction" mapstructure:"redaction"`     // Feature 003: Redaction settings
-	Connectors   map[string]ConnectorConfig `json:"connectors" mapstructure:"connectors"`   // Feature 003: MCP connector config
+	APIKey       string                     `json:"apiKey" mapstructure:"apiKey"`               // Feature 003: Unified API key field
+	Mode         string                     `json:"mode" mapstructure:"mode"`                   // Feature 003: disabled|context|autonomous
+	Timeout      int                        `json:"timeout" mapstructure:"timeout"`             // seconds
+	RateLimit    int                        `json:"rate_limit" mapstructure:"rate_limit"`       // requests per minute
+	CacheDir     string                     `json:"cache_dir" mapstructure:"cache_dir"`         // cache directory path
+	NoCache      bool                       `json:"no_cache" mapstructure:"no_cache"`           // Feature 003: Disable caching
+	Concurrency  ConcurrencyLimits          `json:"concurrency" mapstructure:"concurrency"`     // Feature 003: Concurrency limits
+	Budgets      BudgetLimits               `json:"budgets" mapstructure:"budgets"`             // Feature 003: Budget limits
+	Autonomous   AutonomousConfig           `json:"autonomous" mapstructure:"autonomous"`       // Feature 003: Autonomous mode config
+	Redaction    RedactionConfig            `json:"redaction" mapstructure:"redaction"`         // Feature 003: Redaction settings
+	Connectors   map[string]ConnectorConfig `json:"connectors" mapstructure:"connectors"`       // Feature 003: MCP connector config
 }
 
 // ConcurrencyLimits defines concurrency constraints for AI operations (Feature 003)
@@ -168,6 +173,8 @@ func DefaultConfig() *Config {
 				},
 			},
 		},
+		MCP:       DefaultMCPConfig(),      // Feature 006: MCP default config
+		Providers: make(map[string]ProviderConfig), // Feature 006: Empty providers map
 	}
 }
 
@@ -354,6 +361,63 @@ func ValidateConfig(c *Config) error {
 					// API keys can be provided via environment variables
 				}
 			}
+		}
+	}
+
+	return nil
+}
+
+// ValidateMCPConfig validates the MCP configuration (Feature 006).
+func ValidateMCPConfig(mcp *MCPConfig) error {
+	if mcp == nil {
+		return nil // MCP config is optional
+	}
+
+	// Validate max_concurrent range
+	if mcp.MaxConcurrent < 1 || mcp.MaxConcurrent > 100 {
+		return fmt.Errorf("mcp.max_concurrent must be between 1 and 100, got %d", mcp.MaxConcurrent)
+	}
+
+	// Validate health_check_interval minimum
+	if mcp.HealthCheckInterval < 60 {
+		return fmt.Errorf("mcp.health_check_interval must be >= 60 seconds, got %d", mcp.HealthCheckInterval)
+	}
+
+	// Validate server configurations
+	for name, server := range mcp.Servers {
+		// Validate server name pattern (lowercase alphanumeric and hyphens)
+		if len(name) == 0 {
+			return fmt.Errorf("mcp server name cannot be empty")
+		}
+
+		// Validate transport type
+		if server.Transport != "stdio" && server.Transport != "http" {
+			return fmt.Errorf("mcp server '%s': transport must be 'stdio' or 'http', got '%s'", name, server.Transport)
+		}
+
+		// Validate stdio transport requirements
+		if server.Transport == "stdio" {
+			if server.Command == "" {
+				return fmt.Errorf("mcp server '%s': command is required for stdio transport", name)
+			}
+			if server.URL != "" {
+				return fmt.Errorf("mcp server '%s': url must be empty for stdio transport", name)
+			}
+		}
+
+		// Validate http transport requirements
+		if server.Transport == "http" {
+			if server.URL == "" {
+				return fmt.Errorf("mcp server '%s': url is required for http transport", name)
+			}
+			if server.Command != "" {
+				return fmt.Errorf("mcp server '%s': command must be empty for http transport", name)
+			}
+		}
+
+		// Validate timeout range
+		if server.Timeout < 1 || server.Timeout > 600 {
+			return fmt.Errorf("mcp server '%s': timeout must be between 1 and 600 seconds, got %d", name, server.Timeout)
 		}
 	}
 

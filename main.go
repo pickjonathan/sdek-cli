@@ -6,11 +6,14 @@ import (
 	"runtime/debug"
 
 	"github.com/pickjonathan/sdek-cli/cmd"
+
+	// Import providers to trigger init() registration
+	_ "github.com/pickjonathan/sdek-cli/internal/ai/providers"
 )
 
 var (
-	version   = "dev"
-	buildDate = "unknown"
+	version   = "1.0.0"
+	buildDate = "2025-10-28"
 )
 
 func main() {

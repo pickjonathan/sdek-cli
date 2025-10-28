@@ -128,6 +128,181 @@ Viper handles all config binding automatically via `cmd/root.go:initConfig()`.
 6. Parse structured JSON response into `types.Finding`
 7. Save to cache + state
 
+### MCP Integration Architecture (Feature 006)
+
+**Overview:**
+Feature 006 transforms sdek-cli into an MCP-pluggable system, enabling zero-code evidence source addition through external MCP servers.
+
+**MCP Data Flow:**
+```
+AI Engine → ConnectorAdapter → MCPManager → MCPServer → Transport → External MCP Server
+                                    ↓
+                            Health Monitor + Retry Logic
+```
+
+**Key Components:**
+- `internal/mcp/manager.go`: Multi-server orchestration with health monitoring
+- `internal/mcp/client.go`: MCP client with handshake and tool discovery
+- `internal/mcp/transport.go`: Transport abstraction (stdio, HTTP)
+- `internal/mcp/stdio_client.go`: Subprocess-based MCP communication
+- `internal/mcp/http_client.go`: HTTP-based MCP communication
+- `internal/mcp/connector_adapter.go`: Bridges MCP to AI engine
+- `internal/mcp/normalizer.go`: Converts MCP results to EvidenceEvent format
+- `internal/ai/mcp_integration.go`: AI engine integration helpers
+
+**MCP Configuration:**
+```yaml
+mcp:
+  enabled: true
+  prefer_mcp: true
+  max_concurrent: 10
+  health_check_interval: 300
+  retry:
+    max_attempts: 3
+    backoff: "exponential"
+  servers:
+    aws-api:
+      command: "uvx"
+      args: ["aws-api-mcp-server"]
+      transport: "stdio"
+      env:
+        AWS_PROFILE: "readonly"
+```
+
+**Usage:**
+```bash
+# List MCP servers
+sdek mcp list-servers
+
+# List available tools
+sdek mcp list-tools
+
+# Test server connection
+sdek mcp test aws-api
+
+# Use in evidence collection (source format: "server:tool")
+sdek ai plan --sources aws-api:call_aws
+```
+
+**Creating Engine with MCP:**
+```go
+// With MCP support
+engine, err := ai.NewEngineWithMCP(ctx, config, provider)
+
+// Without MCP (legacy)
+engine := ai.NewEngine(config, provider)
+```
+
+**MCP Features:**
+- **Graceful Degradation**: Individual server failures don't crash system
+- **Health Monitoring**: Periodic background checks with status tracking
+- **Retry Logic**: Configurable exponential/linear/constant backoff
+- **Tool Discovery**: Automatic detection of available tools from servers
+- **Result Normalization**: Converts diverse MCP formats to EvidenceEvent
+- **Concurrent Execution**: Parallel tool calls with concurrency limits
+
+### Tool Registry & Multi-System Orchestration (Feature 006 - Phase 5)
+
+**Overview:**
+Phase 5 adds a unified tool registry with three-tier safety validation, parallel execution, and comprehensive audit logging for multi-source evidence collection.
+
+**Tool System Data Flow:**
+```
+User Request → AI Engine → Tool Registry → Safety Validator
+                                ↓              ↓
+                         Tool Lookup     Risk Assessment
+                                ↓              ↓
+                           Executor  ←  Approval Check
+                                ↓
+                         Parallel Execution (Semaphore)
+                                ↓
+                    ┌──────────┴──────────┐
+                    ↓                     ↓
+              MCP Manager          Builtin/Legacy
+                    ↓                     ↓
+              Tool Results          Tool Results
+                    ↓                     ↓
+                    └──────────┬──────────┘
+                               ↓
+                        Audit Logger
+                               ↓
+                      Aggregated Results
+```
+
+**Key Components:**
+- `internal/tools/registry.go`: Unified tool catalog (builtin, MCP, legacy)
+- `internal/tools/safety.go`: Three-tier safety validation framework
+- `internal/tools/executor.go`: Parallel executor with semaphore-based concurrency
+- `internal/tools/audit.go`: JSON-based audit trail with log rotation
+- `internal/tools/integration.go`: Bridges tool system to AI engine
+
+**Tool Registry Usage:**
+```go
+// Create registry with MCP manager
+manager := mcp.NewMCPManager(config.MCP)
+registry := tools.NewToolRegistry(true, manager) // preferMCP=true
+
+// Initialize from MCP servers
+if err := tools.InitializeToolRegistryFromMCP(registry, manager); err != nil {
+    log.Fatalf("Failed to initialize tools: %v", err)
+}
+
+// Get tool
+tool, err := registry.Get("call_aws")
+
+// Analyze safety
+call := &types.ToolCall{
+    ToolName:  "delete_tool",
+    Arguments: map[string]interface{}{"command": "delete users"},
+    Context:   map[string]string{},
+}
+analysis := registry.Analyze(call)
+if analysis.RequiresApproval {
+    fmt.Printf("⚠️  Requires approval: %s\n", analysis.Rationale)
+}
+
+// Execute tool (with approval)
+call.Context["approved"] = "true"
+result, err := registry.Execute(ctx, call)
+```
+
+**Parallel Execution:**
+```go
+// Create executor
+auditor, _ := tools.NewAuditLogger("/var/log/sdek/audit.log")
+executor := tools.NewExecutor(registry, 10, 60*time.Second, auditor)
+
+// Execute multiple tools in parallel
+calls := []*types.ToolCall{
+    {ToolName: "aws-api:call_aws", Arguments: map[string]interface{}{"command": "iam list-users"}},
+    {ToolName: "github-mcp:search_code", Arguments: map[string]interface{}{"query": "auth"}},
+    {ToolName: "jira-mcp:search_issues", Arguments: map[string]interface{}{"jql": "project=SEC"}},
+}
+
+results, err := executor.ExecuteParallel(ctx, calls)
+```
+
+**Safety Validation (Three-Tier):**
+1. **Tier 1 - Interactive Commands**: Blocks vim, bash, python REPLs, etc.
+2. **Tier 2 - Resource Modification**: Requires approval for delete, terminate, destroy, etc.
+3. **Tier 3 - Safe Operations**: Auto-approves read-only operations (list, get, describe)
+
+**Safety Configuration:**
+```go
+validator := tools.NewSafetyValidator()
+
+// Customize rules
+validator.AddDenyPattern("force-push")
+validator.AddAllowPattern("list-*")
+validator.SetDenyList([]string{"rm -rf", "drop table"})
+```
+
+**Audit Logging:**
+- Every tool execution logged with timestamp, arguments, results, latency
+- JSON-line format for easy parsing
+- Concurrent-safe writes
+- Automatic log rotation support
+
 ### Evidence Mapping Logic
 
 Located in `internal/analyze/mapper.go`:
@@ -290,9 +465,26 @@ From `.github/copilot-instructions.md`:
 
 - **Main entry**: `main.go` (minimal, delegates to cmd package)
 - **CLI commands**: `cmd/*.go` (Cobra commands)
+  - `cmd/mcp.go`, `cmd/mcp_*.go`: MCP management commands (Feature 006)
 - **Core types**: `pkg/types/*.go` (public API)
+  - `pkg/types/mcp.go`: MCP configuration types (Feature 006)
+  - `pkg/types/provider.go`: AI provider types (Feature 006)
+  - `pkg/types/tool.go`: Tool system types (Feature 006)
 - **Analysis logic**: `internal/analyze/` (mapping, risk scoring)
 - **AI integration**: `internal/ai/` (engine, providers, privacy)
+  - `internal/ai/mcp_integration.go`: MCP engine integration (Feature 006)
+- **MCP integration**: `internal/mcp/` (MCP client implementation - Feature 006)
+  - `manager.go`: Multi-server orchestration
+  - `client.go`: MCP protocol handshake
+  - `transport.go`, `stdio_client.go`, `http_client.go`: Transport layer
+  - `connector_adapter.go`: Bridge to AI engine
+  - `normalizer.go`: Result normalization
+- **Tool registry**: `internal/tools/` (Multi-system orchestration - Feature 006 Phase 5)
+  - `registry.go`: Unified tool catalog (builtin, MCP, legacy)
+  - `safety.go`: Three-tier safety validation framework
+  - `executor.go`: Parallel executor with semaphore concurrency
+  - `audit.go`: JSON-based audit trail with log rotation
+  - `integration.go`: Bridges tool system to AI engine
 - **State persistence**: `internal/store/state.go`
 - **Config loading**: `internal/config/loader.go`
 - **Test fixtures**: `testdata/` (JSON fixtures for tests)
@@ -304,3 +496,25 @@ From `.github/copilot-instructions.md`:
 - [config.example.yaml](config.example.yaml): Full configuration reference
 - [specs/003-ai-context-injection/](specs/003-ai-context-injection/): Context injection feature spec
 - [specs/003-ai-context-injection/quickstart.md](specs/003-ai-context-injection/quickstart.md): AI workflow examples
+- [specs/006-mcp-pluggable-architecture/](specs/006-mcp-pluggable-architecture/): MCP integration feature spec
+- [specs/006-mcp-pluggable-architecture/quickstart.md](specs/006-mcp-pluggable-architecture/quickstart.md): MCP usage guide
+- [specs/006-mcp-pluggable-architecture/FINAL_IMPLEMENTATION_SUMMARY.md](specs/006-mcp-pluggable-architecture/FINAL_IMPLEMENTATION_SUMMARY.md): Implementation summary
+
+## Recent Changes
+- **2025-10-28**: Feature 006 Phase 5 Complete - Multi-System Orchestration implemented
+  - Added unified tool registry combining builtin, MCP, and legacy tools
+  - Implemented three-tier safety validation (interactive, modifies, safe)
+  - Added parallel executor with configurable concurrency limits
+  - Comprehensive audit logging with JSON-based trail
+  - 10 unit tests covering all core functionality (100% pass rate)
+  - Full backward compatibility maintained
+- **2025-10-27**: Feature 006 Phase 4 Complete - MCP Client Mode implemented
+  - Added MCP client infrastructure (JSON-RPC, transports, manager)
+  - Integrated MCP with AI engine via ConnectorAdapter
+  - Added CLI commands: `sdek mcp list-servers`, `list-tools`, `test`
+  - Support for 7+ AI providers (OpenAI, Anthropic, Gemini, Ollama, etc.)
+  - Full backward compatibility maintained
+
+## Active Technologies
+- Go 1.23+ (latest stable, matching current codebase) (006-mcp-pluggable-architecture)
+- File-based (JSON state in `~/.sdek/state.json`, YAML config in `~/.sdek/config.yaml`, no database changes) (006-mcp-pluggable-architecture)
