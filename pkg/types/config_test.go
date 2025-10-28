@@ -527,3 +527,219 @@ func TestConnectorConfig(t *testing.T) {
 		}
 	})
 }
+
+// TestMCPConfigInDefaultConfig tests Feature 006 MCP config in default config (T013)
+func TestMCPConfigInDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+
+	// Test MCP config is initialized
+	if !cfg.MCP.Enabled {
+		t.Error("Expected MCP to be enabled by default")
+	}
+
+	if !cfg.MCP.PreferMCP {
+		t.Error("Expected PreferMCP to be true by default")
+	}
+
+	if cfg.MCP.MaxConcurrent != 10 {
+		t.Errorf("Expected MCP.MaxConcurrent to be 10, got %d", cfg.MCP.MaxConcurrent)
+	}
+
+	if cfg.MCP.HealthCheckInterval != 300 {
+		t.Errorf("Expected MCP.HealthCheckInterval to be 300, got %d", cfg.MCP.HealthCheckInterval)
+	}
+
+	if cfg.MCP.Servers == nil {
+		t.Error("Expected MCP.Servers map to be initialized")
+	}
+}
+
+// TestProvidersMapInDefaultConfig tests Feature 006 Providers map in default config (T013)
+func TestProvidersMapInDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.Providers == nil {
+		t.Error("Expected Providers map to be initialized")
+	}
+
+	// Default config should have empty providers map
+	if len(cfg.Providers) != 0 {
+		t.Errorf("Expected Providers map to be empty by default, got %d entries", len(cfg.Providers))
+	}
+}
+
+// TestConfigWithMCPServers tests loading config with MCP servers (T013)
+func TestConfigWithMCPServers(t *testing.T) {
+	cfg := &Config{
+		MCP: MCPConfig{
+			Enabled:             true,
+			PreferMCP:           true,
+			MaxConcurrent:       10,
+			HealthCheckInterval: 300,
+			Servers: map[string]MCPServerConfig{
+				"aws-api": {
+					Command:   "uvx",
+					Args:      []string{"aws-api-mcp-server"},
+					Transport: "stdio",
+					Timeout:   60,
+					Env: map[string]string{
+						"AWS_PROFILE": "readonly",
+					},
+				},
+				"github-mcp": {
+					URL:       "https://github-mcp.example.com/api",
+					Transport: "http",
+					Timeout:   30,
+					Headers: map[string]string{
+						"Authorization": "Bearer token",
+					},
+				},
+			},
+		},
+	}
+
+	// Validate MCP config
+	err := ValidateMCPConfig(&cfg.MCP)
+	if err != nil {
+		t.Errorf("Expected valid MCP config, got error: %v", err)
+	}
+
+	// Check servers
+	if len(cfg.MCP.Servers) != 2 {
+		t.Errorf("Expected 2 MCP servers, got %d", len(cfg.MCP.Servers))
+	}
+
+	// Check aws-api server
+	awsServer, ok := cfg.MCP.Servers["aws-api"]
+	if !ok {
+		t.Fatal("Expected aws-api server to exist")
+	}
+
+	if awsServer.Transport != "stdio" {
+		t.Errorf("Expected aws-api transport to be 'stdio', got '%s'", awsServer.Transport)
+	}
+
+	if awsServer.Command != "uvx" {
+		t.Errorf("Expected aws-api command to be 'uvx', got '%s'", awsServer.Command)
+	}
+
+	// Check github-mcp server
+	githubServer, ok := cfg.MCP.Servers["github-mcp"]
+	if !ok {
+		t.Fatal("Expected github-mcp server to exist")
+	}
+
+	if githubServer.Transport != "http" {
+		t.Errorf("Expected github-mcp transport to be 'http', got '%s'", githubServer.Transport)
+	}
+
+	if githubServer.URL == "" {
+		t.Error("Expected github-mcp to have URL")
+	}
+}
+
+// TestConfigWithProviders tests loading config with AI providers (T013)
+func TestConfigWithProviders(t *testing.T) {
+	cfg := &Config{
+		Providers: map[string]ProviderConfig{
+			"openai": {
+				URL:         "openai://api.openai.com",
+				APIKey:      "${OPENAI_API_KEY}",
+				Model:       "gpt-4o",
+				Timeout:     60,
+				MaxRetries:  3,
+				Temperature: 0.0,
+				MaxTokens:   4096,
+			},
+			"ollama": {
+				URL:       "ollama://localhost:11434",
+				Model:     "gemma3:12b",
+				Timeout:   120,
+				MaxTokens: 8192,
+				Extra: map[string]string{
+					"num_ctx": "8192",
+				},
+			},
+		},
+	}
+
+	// Check providers
+	if len(cfg.Providers) != 2 {
+		t.Errorf("Expected 2 providers, got %d", len(cfg.Providers))
+	}
+
+	// Check OpenAI provider
+	openai, ok := cfg.Providers["openai"]
+	if !ok {
+		t.Fatal("Expected openai provider to exist")
+	}
+
+	if openai.URL != "openai://api.openai.com" {
+		t.Errorf("Expected openai URL, got '%s'", openai.URL)
+	}
+
+	if openai.Model != "gpt-4o" {
+		t.Errorf("Expected openai model to be 'gpt-4o', got '%s'", openai.Model)
+	}
+
+	// Check Ollama provider
+	ollama, ok := cfg.Providers["ollama"]
+	if !ok {
+		t.Fatal("Expected ollama provider to exist")
+	}
+
+	if ollama.URL != "ollama://localhost:11434" {
+		t.Errorf("Expected ollama URL, got '%s'", ollama.URL)
+	}
+
+	if ollama.Extra["num_ctx"] != "8192" {
+		t.Errorf("Expected ollama num_ctx to be '8192', got '%s'", ollama.Extra["num_ctx"])
+	}
+}
+
+// TestBackwardCompatibilityFeature003 tests that Feature 003 configs still work (T013)
+func TestBackwardCompatibilityFeature003(t *testing.T) {
+	// Start with default config (includes all Feature 006 defaults)
+	cfg := DefaultConfig()
+
+	// Modify to look like a Feature 003 config
+	cfg.AI.Enabled = true
+	cfg.AI.Provider = "openai"
+	cfg.AI.Model = "gpt-4"
+	cfg.AI.OpenAIKey = "${OPENAI_API_KEY}"
+	cfg.AI.Mode = "context"
+	cfg.AI.Connectors["github"] = ConnectorConfig{
+		Enabled: true,
+		APIKey:  "${GITHUB_TOKEN}",
+		Timeout: 30,
+	}
+
+	// Validate config
+	err := ValidateConfig(cfg)
+	if err != nil {
+		t.Errorf("Expected Feature 003 config to be valid, got error: %v", err)
+	}
+
+	// Ensure AI config is preserved
+	if cfg.AI.Provider != "openai" {
+		t.Error("Feature 003 AI.Provider not preserved")
+	}
+
+	if cfg.AI.Mode != "context" {
+		t.Error("Feature 003 AI.Mode not preserved")
+	}
+
+	// Ensure connectors are preserved
+	if len(cfg.AI.Connectors) == 0 {
+		t.Error("Feature 003 connectors not preserved")
+	}
+
+	// Ensure Feature 006 fields are also present
+	if !cfg.MCP.Enabled {
+		t.Error("Feature 006 MCP config not initialized")
+	}
+
+	if cfg.Providers == nil {
+		t.Error("Feature 006 Providers map not initialized")
+	}
+}

@@ -6,10 +6,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pickjonathan/sdek-cli/internal/ai"
-	"github.com/pickjonathan/sdek-cli/internal/ai/providers"
+	"github.com/pickjonathan/sdek-cli/internal/ai/factory"
 	"github.com/pickjonathan/sdek-cli/internal/analyze"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
 	"github.com/pickjonathan/sdek-cli/ui/components"
@@ -160,9 +161,14 @@ Note: Confidence thresholds are configured in config.yaml under ai.context_injec
 			return fmt.Errorf("no evidence events found in specified paths")
 		}
 
-		// Step 5: Show interactive context preview (Feature 003)
-		if err := showContextPreview(preamble, len(evidence.Events)); err != nil {
-			return fmt.Errorf("preview cancelled or failed: %w", err)
+		// Step 5: Show interactive context preview (Feature 003) unless --yes flag is set
+		skipPreview, _ := cmd.Flags().GetBool("yes")
+		if !skipPreview {
+			if err := showContextPreview(preamble, len(evidence.Events)); err != nil {
+				return fmt.Errorf("preview cancelled or failed: %w", err)
+			}
+		} else {
+			slog.Info("Skipping interactive preview (--yes flag set)")
 		}
 
 		// Step 6: Load configuration
@@ -273,66 +279,73 @@ func initializeAIEngine(cfg *types.Config) (ai.Engine, error) {
 		}
 	}
 
-	timeout := cfg.AI.Timeout
-	if timeout == 0 {
-		timeout = 60 // Default 60 seconds
-	}
-
-	// Build AIConfig (internal AI package config)
-	aiConfig := ai.AIConfig{
-		Provider:     provider,
-		Enabled:      true,
-		Model:        model,
-		Timeout:      timeout,
-		RateLimit:    cfg.AI.RateLimit,
-		OpenAIKey:    cfg.AI.OpenAIKey,
-		AnthropicKey: cfg.AI.AnthropicKey,
+	// Build provider configuration
+	providerConfig := types.ProviderConfig{
+		APIKey:      cfg.AI.APIKey,
+		Model:       model,
+		MaxTokens:   cfg.AI.MaxTokens,
+		Temperature: float64(cfg.AI.Temperature),
+		Timeout:     cfg.AI.Timeout,
+		MaxRetries:  3,
 	}
 
 	// Override with environment variables if not set
-	if aiConfig.OpenAIKey == "" {
-		aiConfig.OpenAIKey = os.Getenv("SDEK_OPENAI_KEY")
-	}
-	if aiConfig.AnthropicKey == "" {
-		aiConfig.AnthropicKey = os.Getenv("SDEK_ANTHROPIC_KEY")
+	if providerConfig.APIKey == "" {
+		if provider == "openai" {
+			providerConfig.APIKey = os.Getenv("SDEK_OPENAI_KEY")
+			if providerConfig.APIKey == "" {
+				providerConfig.APIKey = cfg.AI.OpenAIKey
+			}
+		} else if provider == "anthropic" {
+			providerConfig.APIKey = os.Getenv("SDEK_ANTHROPIC_KEY")
+			if providerConfig.APIKey == "" {
+				providerConfig.APIKey = cfg.AI.AnthropicKey
+			}
+		}
 	}
 
 	// Set defaults
-	if aiConfig.MaxTokens == 0 {
-		aiConfig.MaxTokens = 4096
+	if providerConfig.Timeout == 0 {
+		providerConfig.Timeout = 60
 	}
-	if aiConfig.Temperature == 0 {
-		aiConfig.Temperature = 0.3
+	if providerConfig.MaxTokens == 0 {
+		providerConfig.MaxTokens = 4096
 	}
-	if aiConfig.RateLimit == 0 {
-		aiConfig.RateLimit = 10
-	}
-
-	// Validate API keys
-	if provider == "openai" && aiConfig.OpenAIKey == "" {
-		return nil, fmt.Errorf("OpenAI API key required - set SDEK_OPENAI_KEY or configure in config.yaml")
-	}
-	if provider == "anthropic" && aiConfig.AnthropicKey == "" {
-		return nil, fmt.Errorf("Anthropic API key required - set SDEK_ANTHROPIC_KEY or configure in config.yaml")
+	if providerConfig.Temperature == 0 {
+		providerConfig.Temperature = 0.3
 	}
 
-	// Create engine based on provider
-	var engine ai.Engine
-	var err error
-
-	switch provider {
-	case "openai":
-		engine, err = providers.NewOpenAIEngine(aiConfig)
-	case "anthropic":
-		engine, err = providers.NewAnthropicEngine(aiConfig)
-	default:
-		return nil, fmt.Errorf("unsupported AI provider: %s", provider)
+	// Determine provider URL
+	providerURL := cfg.AI.ProviderURL
+	if providerURL == "" {
+		switch provider {
+		case "openai":
+			providerURL = "openai://api.openai.com"
+		case "anthropic":
+			providerURL = "anthropic://api.anthropic.com"
+		case "ollama":
+			providerURL = "ollama://localhost:11434"
+		case "gemini":
+			providerURL = "gemini://generativelanguage.googleapis.com"
+		default:
+			return nil, fmt.Errorf("unsupported AI provider: %s (use provider_url config)", provider)
+		}
 	}
 
+	// Validate API key (not required for local providers like Ollama)
+	requiresAPIKey := !strings.Contains(strings.ToLower(providerURL), "ollama://")
+	if requiresAPIKey && providerConfig.APIKey == "" {
+		return nil, fmt.Errorf("API key required for %s - set SDEK_%s_KEY or configure in config.yaml", provider, strings.ToUpper(provider))
+	}
+
+	// Create provider
+	aiProvider, err := factory.CreateProvider(providerURL, providerConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create AI engine: %w", err)
+		return nil, fmt.Errorf("failed to create AI provider: %w", err)
 	}
 
+	// Create engine
+	engine := ai.NewEngine(cfg, aiProvider)
 	return engine, nil
 }
 
@@ -400,6 +413,7 @@ func init() {
 	// Optional flags
 	aiAnalyzeCmd.Flags().Bool("no-cache", false, "Bypass cache and perform fresh analysis")
 	aiAnalyzeCmd.Flags().String("output", "findings.json", "Output file for finding results")
+	aiAnalyzeCmd.Flags().BoolP("yes", "y", false, "Skip interactive preview and auto-approve analysis")
 
 	aiAnalyzeCmd.MarkFlagRequired("framework")
 	aiAnalyzeCmd.MarkFlagRequired("section")

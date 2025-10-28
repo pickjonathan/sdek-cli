@@ -4,17 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/pickjonathan/sdek-cli/internal/ai"
+	"github.com/pickjonathan/sdek-cli/internal/ai/factory"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
 	"github.com/sashabaranov/go-openai"
 )
 
 // Register OpenAI provider factory on package initialization
 func init() {
-	ai.RegisterProviderFactory("openai", func(config ai.AIConfig) (ai.Provider, error) {
+	factory.RegisterProviderFactory("openai", func(config types.ProviderConfig) (ai.Provider, error) {
 		return NewOpenAIEngine(config)
 	})
 }
@@ -30,18 +32,52 @@ type OpenAIEngine struct {
 	lastPrompt string
 }
 
-// NewOpenAIEngine creates a new OpenAI engine
-func NewOpenAIEngine(config ai.AIConfig) (*OpenAIEngine, error) {
-	if config.OpenAIKey == "" {
+// NewOpenAIEngine creates a new OpenAI engine from ProviderConfig
+func NewOpenAIEngine(config types.ProviderConfig) (*OpenAIEngine, error) {
+	// Validate API key
+	if config.APIKey == "" {
 		return nil, ai.ErrProviderAuth
 	}
 
-	client := openai.NewClient(config.OpenAIKey)
+	// Set defaults if not provided
+	if config.Timeout == 0 {
+		config.Timeout = 60
+	}
+	if config.MaxRetries == 0 {
+		config.MaxRetries = 3
+	}
+	if config.MaxTokens == 0 {
+		config.MaxTokens = 4096
+	}
+
+	// Create OpenAI client
+	client := openai.NewClient(config.APIKey)
+
+	// Override endpoint if custom endpoint provided
+	if config.Endpoint != "" {
+		clientConfig := openai.DefaultConfig(config.APIKey)
+		clientConfig.BaseURL = config.Endpoint
+		client = openai.NewClientWithConfig(clientConfig)
+	}
+
+	// Convert ProviderConfig to legacy AIConfig for internal use
+	// This maintains compatibility with existing methods
+	legacyConfig := ai.AIConfig{
+		Provider:     "openai",
+		Enabled:      true,
+		Model:        config.Model,
+		MaxTokens:    config.MaxTokens,
+		Temperature:  float32(config.Temperature),
+		Timeout:      config.Timeout,
+		RateLimit:    0, // Rate limiting handled by provider if configured
+		OpenAIKey:    config.APIKey,
+		AnthropicKey: "",
+	}
 
 	return &OpenAIEngine{
 		client:  client,
-		config:  config,
-		limiter: NewRateLimiter(config.RateLimit),
+		config:  legacyConfig,
+		limiter: NewRateLimiter(0), // No rate limiting by default for new system
 	}, nil
 }
 
@@ -173,7 +209,13 @@ func (e *OpenAIEngine) Analyze(ctx context.Context, preamble types.ContextPreamb
 			Name: "analyze_compliance_evidence",
 		},
 		Temperature: float32(e.config.Temperature),
-		MaxTokens:   e.config.MaxTokens,
+	}
+
+	// Use MaxCompletionTokens for GPT-5 and o1 models, MaxTokens for others
+	if e.usesMaxCompletionTokens() {
+		chatReq.MaxCompletionTokens = e.config.MaxTokens
+	} else {
+		chatReq.MaxTokens = e.config.MaxTokens
 	}
 
 	resp, err := e.client.CreateChatCompletion(ctx, chatReq)
@@ -367,7 +409,13 @@ func (e *OpenAIEngine) performAnalysis(ctx context.Context, req *ai.AnalysisRequ
 			Name: "analyze_evidence",
 		},
 		Temperature: float32(e.config.Temperature),
-		MaxTokens:   e.config.MaxTokens,
+	}
+
+	// Use MaxCompletionTokens for GPT-5 and o1 models, MaxTokens for others
+	if e.usesMaxCompletionTokens() {
+		chatReq.MaxCompletionTokens = e.config.MaxTokens
+	} else {
+		chatReq.MaxTokens = e.config.MaxTokens
 	}
 
 	resp, err := e.client.CreateChatCompletion(ctx, chatReq)
@@ -586,7 +634,13 @@ func (e *OpenAIEngine) AnalyzeWithContext(ctx context.Context, prompt string) (s
 			},
 		},
 		Temperature: float32(e.config.Temperature),
-		MaxTokens:   e.config.MaxTokens,
+	}
+
+	// Use MaxCompletionTokens for GPT-5 and o1 models, MaxTokens for others
+	if e.usesMaxCompletionTokens() {
+		chatReq.MaxCompletionTokens = e.config.MaxTokens
+	} else {
+		chatReq.MaxTokens = e.config.MaxTokens
 	}
 
 	// Make API call with retry
@@ -620,4 +674,13 @@ func (e *OpenAIEngine) GetCallCount() int {
 // GetLastPrompt implements ai.Provider.GetLastPrompt
 func (e *OpenAIEngine) GetLastPrompt() string {
 	return e.lastPrompt
+}
+
+// usesMaxCompletionTokens returns true if the model requires MaxCompletionTokens instead of MaxTokens
+// GPT-5 and o1-series models require MaxCompletionTokens
+func (e *OpenAIEngine) usesMaxCompletionTokens() bool {
+	model := strings.ToLower(e.config.Model)
+	return strings.HasPrefix(model, "gpt-5") ||
+	       strings.HasPrefix(model, "o1-") ||
+	       strings.HasPrefix(model, "o1")
 }

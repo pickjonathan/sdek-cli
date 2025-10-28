@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pickjonathan/sdek-cli/internal/ai"
+	"github.com/pickjonathan/sdek-cli/internal/ai/factory"
 	"github.com/pickjonathan/sdek-cli/internal/analyze"
 	"github.com/pickjonathan/sdek-cli/pkg/types"
 	"github.com/pickjonathan/sdek-cli/ui/components"
@@ -93,21 +95,27 @@ Note: Budget limits (max sources, API calls, tokens) are configured in config.ya
 
 		// Verify AI provider configuration
 		provider := viper.GetString("ai.provider")
-		if provider != "openai" && provider != "anthropic" {
-			return fmt.Errorf("unsupported AI provider: %s (must be 'openai' or 'anthropic')", provider)
+		providerURL := viper.GetString("ai.provider_url")
+
+		// Check if using provider_url (Feature 006) or legacy provider (Feature 003)
+		if providerURL == "" && provider == "" {
+			return fmt.Errorf("AI provider not configured (set ai.provider or ai.provider_url)")
 		}
 
-		// Check API key is configured
-		apiKey := viper.GetString("ai.apiKey")
-		if apiKey == "" {
-			// Try provider-specific keys as fallback
-			if provider == "openai" {
-				apiKey = viper.GetString("ai.openai_key")
-			} else if provider == "anthropic" {
-				apiKey = viper.GetString("ai.anthropic_key")
-			}
+		// Check API key is configured (not required for local providers like Ollama)
+		requiresAPIKey := provider != "ollama" && !strings.Contains(strings.ToLower(providerURL), "ollama://")
+		if requiresAPIKey {
+			apiKey := viper.GetString("ai.apiKey")
 			if apiKey == "" {
-				return fmt.Errorf("AI API key not configured (ai.apiKey or ai.%s_key)", provider)
+				// Try provider-specific keys as fallback
+				if provider == "openai" {
+					apiKey = viper.GetString("ai.openai_key")
+				} else if provider == "anthropic" {
+					apiKey = viper.GetString("ai.anthropic_key")
+				}
+				if apiKey == "" {
+					return fmt.Errorf("AI API key not configured (ai.apiKey or ai.%s_key)", provider)
+				}
 			}
 		}
 
@@ -194,11 +202,70 @@ func runAIPlan(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create context preamble: %w", err)
 	}
 
-	// Step 4: Initialize AI engine using new factory
+	// Step 4: Initialize AI provider and engine
 	slog.Info("Initializing AI engine", "provider", cfg.AI.Provider)
-	engine, err := ai.NewEngineFromConfig(cfg)
+
+	// Build provider configuration
+	providerConfig := types.ProviderConfig{
+		APIKey:      cfg.AI.APIKey,
+		Model:       cfg.AI.Model,
+		MaxTokens:   cfg.AI.MaxTokens,
+		Temperature: float64(cfg.AI.Temperature),
+		Timeout:     cfg.AI.Timeout,
+		MaxRetries:  3, // Default retries
+	}
+
+	// Set defaults
+	if providerConfig.Timeout == 0 {
+		providerConfig.Timeout = 60
+	}
+	if providerConfig.MaxTokens == 0 {
+		providerConfig.MaxTokens = 4096
+	}
+	if providerConfig.Temperature == 0 {
+		providerConfig.Temperature = 0.3
+	}
+
+	// Determine provider URL
+	providerURL := cfg.AI.ProviderURL
+	if providerURL == "" {
+		// Construct URL from provider name
+		switch cfg.AI.Provider {
+		case types.AIProviderOpenAI:
+			providerURL = "openai://api.openai.com"
+			if providerConfig.APIKey == "" {
+				providerConfig.APIKey = cfg.AI.OpenAIKey
+			}
+		case types.AIProviderAnthropic:
+			providerURL = "anthropic://api.anthropic.com"
+			if providerConfig.APIKey == "" {
+				providerConfig.APIKey = cfg.AI.AnthropicKey
+			}
+		case "ollama":
+			providerURL = "ollama://localhost:11434"
+		case "gemini":
+			providerURL = "gemini://generativelanguage.googleapis.com"
+		default:
+			return fmt.Errorf("unsupported AI provider: %s (use provider_url config instead)", cfg.AI.Provider)
+		}
+	}
+
+	// Validate API key (not required for local providers like Ollama)
+	requiresAPIKey := !strings.Contains(strings.ToLower(providerURL), "ollama://")
+	if requiresAPIKey && providerConfig.APIKey == "" {
+		return fmt.Errorf("API key not configured for provider: %s", cfg.AI.Provider)
+	}
+
+	// Create provider
+	provider, err := factory.CreateProvider(providerURL, providerConfig)
 	if err != nil {
-		return fmt.Errorf("failed to initialize AI engine: %w", err)
+		return fmt.Errorf("failed to create AI provider: %w", err)
+	}
+
+	// Create engine with MCP support (Feature 006)
+	engine, err := ai.NewEngineWithMCP(cmd.Context(), cfg, provider)
+	if err != nil {
+		return fmt.Errorf("failed to create AI engine: %w", err)
 	}
 
 	// Log enabled connectors
@@ -250,6 +317,7 @@ func runAIPlan(cmd *cobra.Command, args []string) error {
 		for i := range plan.Items {
 			plan.Items[i].ApprovalStatus = types.ApprovalApproved
 		}
+		plan.Status = types.PlanApproved
 		slog.Info("Auto-approved all plan items", "count", len(plan.Items))
 	} else {
 		// Launch TUI for interactive approval

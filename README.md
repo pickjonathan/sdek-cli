@@ -419,6 +419,20 @@ The HTML report provides:
 - 📋 Expandable control details with full context
 - 🌐 Self-contained file that works offline
 
+### `sdek ai health`
+Check AI provider connectivity and status (Feature 006).
+
+```bash
+# Check current provider health
+sdek ai health
+
+# Check specific provider URL
+sdek ai health --provider-url "ollama://localhost:11434"
+
+# Show detailed health information
+sdek ai health --verbose
+```
+
 ### `sdek config`
 Manage configuration.
 
@@ -428,6 +442,12 @@ sdek config get log.level           # Get config value
 sdek config set log.level debug     # Set config value
 sdek config list                    # List all settings
 sdek config validate                # Validate configuration
+
+# AI provider configuration (Feature 006)
+sdek config set ai.provider_url "openai://api.openai.com"
+sdek config set ai.model "gpt-4o"
+sdek config set ai.provider_url "ollama://localhost:11434"
+sdek config set ai.model "gemma2:2b"
 ```
 
 ### `sdek tui`
@@ -488,46 +508,94 @@ ai:
 
 ### AI-Enhanced Evidence Analysis
 
-sdek-cli supports optional AI-powered evidence analysis using OpenAI or Anthropic to enhance compliance control mapping with natural language understanding.
+sdek-cli supports optional AI-powered evidence analysis with multiple providers for compliance control mapping with natural language understanding.
 
-#### Features
+#### Features (Updated in Feature 006)
 
-- **Multi-provider support**: OpenAI (GPT-4) or Anthropic (Claude 3) with unified abstraction
+- **Multi-provider support**: 4+ providers with URL scheme-based selection
+  - **Cloud Providers**: OpenAI (GPT-4), Anthropic (Claude), Google Gemini
+  - **Local Models**: Ollama, llama.cpp (zero API costs)
+- **Unified abstraction**: Switch providers without code changes
 - **Hybrid confidence scoring**: Weighted average (70% AI + 30% heuristic) for balanced accuracy
 - **Privacy-first**: Automatic PII/secret redaction before AI transmission
 - **Intelligent caching**: Event-driven cache invalidation reduces redundant API calls
 - **Graceful fallback**: Continues with heuristic analysis if AI fails
 - **Enhanced reporting**: AI justifications, confidence scores, and residual risk notes
+- **Health checks**: Test provider connectivity with `sdek ai health`
 
-#### Enabling AI Analysis
+#### Supported AI Providers
 
-**Option 1: OpenAI**
+| Provider | URL Scheme | Model Examples | Use Case |
+|----------|------------|----------------|----------|
+| **OpenAI** | `openai://api.openai.com` | `gpt-4o`, `gpt-4-turbo` | Production, high quality |
+| **Anthropic** | `anthropic://api.anthropic.com` | `claude-3-5-sonnet`, `claude-3-opus` | Production, long context |
+| **Google Gemini** | `gemini://generativelanguage.googleapis.com` | `gemini-2.0-flash-exp`, `gemini-pro` | Fast, cost-effective |
+| **Ollama** | `ollama://localhost:11434` | `gemma2:2b`, `llama3:8b`, `mixtral` | Local, zero cost, offline |
+
+#### Quick Start: Enabling AI Analysis
+
+**Option 1: Cloud Provider (OpenAI)**
 
 ```bash
 # Set API key
 export SDEK_AI_OPENAI_KEY="sk-..."
 
-# Configure provider
-./sdek config set ai.provider openai
+# Configure provider using URL scheme (Feature 006)
 ./sdek config set ai.enabled true
-./sdek config set ai.model gpt-4-turbo-preview
+./sdek config set ai.provider_url "openai://api.openai.com"
+./sdek config set ai.model "gpt-4o"
+
+# Test connectivity
+./sdek ai health
 
 # Run analysis with AI
 ./sdek analyze
 ```
 
-**Option 2: Anthropic**
+**Option 2: Cloud Provider (Gemini)**
 
 ```bash
 # Set API key
-export SDEK_AI_ANTHROPIC_KEY="sk-ant-..."
+export GOOGLE_API_KEY="..."
 
-# Configure provider
-./sdek config set ai.provider anthropic
+# Configure Gemini provider
 ./sdek config set ai.enabled true
-./sdek config set ai.model claude-3-opus-20240229
+./sdek config set ai.provider_url "gemini://generativelanguage.googleapis.com"
+./sdek config set ai.model "gemini-2.0-flash-exp"
 
-# Run analysis with AI
+# Test connectivity
+./sdek ai health
+
+# Run analysis
+./sdek analyze
+```
+
+**Option 3: Local Model (Ollama)**
+
+```bash
+# Install and start Ollama (https://ollama.ai)
+ollama pull gemma2:2b
+
+# Configure Ollama provider (no API key needed!)
+./sdek config set ai.enabled true
+./sdek config set ai.provider_url "ollama://localhost:11434"
+./sdek config set ai.model "gemma2:2b"
+
+# Test connectivity
+./sdek ai health
+
+# Run analysis with local model (zero API costs)
+./sdek analyze
+```
+
+**Option 4: Legacy Configuration (Backward Compatible)**
+
+```bash
+# Old configuration method still works (Feature 003)
+export SDEK_AI_OPENAI_KEY="sk-..."
+./sdek config set ai.provider openai
+./sdek config set ai.enabled true
+./sdek config set ai.model gpt-4-turbo-preview
 ./sdek analyze
 ```
 
@@ -578,12 +646,15 @@ When AI is disabled, sdek-cli uses deterministic heuristic-only analysis, ensuri
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `ai.enabled` | `false` | Master switch for AI analysis |
-| `ai.provider` | `none` | AI provider: `openai`, `anthropic`, or `none` |
-| `ai.model` | (varies) | Model identifier (e.g., `gpt-4-turbo-preview`, `claude-3-opus-20240229`) |
+| `ai.provider` | `none` | **Legacy** AI provider: `openai`, `anthropic`, or `none` |
+| `ai.provider_url` | `""` | **Feature 006** Provider URL scheme (e.g., `ollama://localhost:11434`) |
+| `ai.model` | (varies) | Model identifier (e.g., `gpt-4o`, `gemma2:2b`, `claude-3-5-sonnet`) |
 | `ai.max_tokens` | `4096` | Maximum tokens per request (0-32768) |
 | `ai.temperature` | `0.3` | Randomness (0.0-1.0, lower = more deterministic) |
 | `ai.timeout` | `60` | Request timeout in seconds (0-300) |
-| `ai.rate_limit` | `10` | Maximum requests per minute |
+| `ai.rate_limit` | `10` | Maximum requests per minute (0 = unlimited) |
+
+**Note:** Use `ai.provider_url` for Feature 006 provider selection. The legacy `ai.provider` field is maintained for backward compatibility.
 
 #### Privacy & Security
 
@@ -903,6 +974,9 @@ Events are mapped to controls using keyword-based heuristics:
 - [x] Command tests
 - [x] TUI application structure
 - [x] Interactive HTML compliance dashboards
+- [x] AI-powered evidence analysis with context injection (Feature 003)
+- [x] Multi-provider AI system with URL scheme selection (Feature 006 - Phase 3)
+- [ ] MCP client implementation for zero-code evidence collection (Feature 006 - Phase 4)
 - [ ] Full interactive TUI with Bubble Tea
 - [ ] Integration tests
 - [ ] Performance optimization (<100ms startup, 60fps TUI)
@@ -920,9 +994,17 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Project Status
 
-**Current Progress**: 79% complete (45/57 tasks)
+**Current Progress**: Feature 006 - Phase 3 Complete (23% of Feature 006, 15/64 tasks)
 
-This is an active development project implementing the specification in `specs/001-create-sdek/`.
+- ✅ **Feature 003**: AI Context Injection (100% complete)
+- ✅ **Feature 006 - Phase 3**: AI Provider Switching (100% complete)
+  - 4 AI providers supported (OpenAI, Anthropic, Gemini, Ollama)
+  - URL scheme-based provider selection
+  - Health check CLI command
+  - Full backward compatibility
+- 🔨 **Feature 006 - Phase 4**: MCP Client Implementation (In Progress)
+
+This is an active development project implementing specifications in `specs/`.
 
 ## Contact
 

@@ -112,88 +112,16 @@ func NewEngineWithConnector(cfg *types.Config, provider Provider, connector MCPC
 	}
 }
 
-// NewEngineFromConfig creates a new Engine instance with connectors built from configuration
-// This is the recommended factory for production use with autonomous mode.
-// It automatically initializes available connectors based on cfg.AI.Connectors settings.
+// NewEngineFromConfig creates a new Engine instance with a provider and connectors.
+//
+// DEPRECATED: This function is deprecated and will be removed in a future version.
+// Use factory.CreateProvider() directly to create a provider, then call NewEngine() or NewEngineWithMCP().
+//
+// This function exists for backward compatibility but callers should migrate to:
+//   provider, _ := factory.CreateProvider(providerURL, providerConfig)
+//   engine := ai.NewEngine(cfg, provider)
 func NewEngineFromConfig(cfg *types.Config) (Engine, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
-	}
-
-	// Create AI provider
-	provider, err := createProvider(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AI provider: %w", err)
-	}
-
-	// Build connector registry from configuration
-	registry, err := buildConnectorRegistry(cfg.AI.Connectors)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build connector registry: %w", err)
-	}
-
-	// Create engine with registry
-	return NewEngineWithConnector(cfg, provider, registry), nil
-}
-
-// createProvider creates an AI provider based on configuration
-// Note: Providers must be imported elsewhere (e.g., in cmd/) to trigger factory registration
-func createProvider(cfg *types.Config) (Provider, error) {
-	// Convert types.Config to ai.AIConfig with defaults
-	aiConfig := AIConfig{
-		Provider:     cfg.AI.Provider,
-		Enabled:      cfg.AI.Enabled,
-		Model:        cfg.AI.Model,
-		MaxTokens:    4096, // Default value
-		Temperature:  0.3,  // Default value
-		Timeout:      cfg.AI.Timeout,
-		RateLimit:    cfg.AI.RateLimit,
-		OpenAIKey:    cfg.AI.OpenAIKey,
-		AnthropicKey: cfg.AI.AnthropicKey,
-	}
-
-	// Override defaults if needed
-	if cfg.AI.Timeout == 0 {
-		aiConfig.Timeout = 60 // Default 60 seconds
-	}
-	if cfg.AI.RateLimit == 0 {
-		aiConfig.RateLimit = 10 // Default 10 requests/min
-	}
-
-	// Get API key from provider-specific fields or unified APIKey field
-	var apiKey string
-	switch cfg.AI.Provider {
-	case types.AIProviderOpenAI:
-		apiKey = cfg.AI.OpenAIKey
-		if apiKey == "" {
-			apiKey = cfg.AI.APIKey
-		}
-		if apiKey == "" {
-			return nil, fmt.Errorf("OpenAI API key not configured")
-		}
-		aiConfig.OpenAIKey = apiKey
-
-	case types.AIProviderAnthropic:
-		apiKey = cfg.AI.AnthropicKey
-		if apiKey == "" {
-			apiKey = cfg.AI.APIKey
-		}
-		if apiKey == "" {
-			return nil, fmt.Errorf("Anthropic API key not configured")
-		}
-		aiConfig.AnthropicKey = apiKey
-
-	default:
-		return nil, fmt.Errorf("unsupported AI provider: %s", cfg.AI.Provider)
-	}
-
-	// Create provider using registered factory
-	provider, err := CreateProviderFromRegistry(cfg.AI.Provider, aiConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create provider: %w", err)
-	}
-
-	return provider, nil
+	return nil, fmt.Errorf("NewEngineFromConfig is deprecated - use factory.CreateProvider() + NewEngine() instead")
 } // buildConnectorRegistry builds a connector registry from configuration
 func buildConnectorRegistry(configs map[string]types.ConnectorConfig) (MCPConnector, error) {
 	if len(configs) == 0 {
